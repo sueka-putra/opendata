@@ -8,6 +8,7 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ asset('css/opendata.css') }}" rel="stylesheet">
+    <link href="{{ asset('css/trx-shared.css') }}" rel="stylesheet">
 </head>
 <body class="od-app">
 <nav class="navbar navbar-expand-lg navbar-light od-navbar">

@@ -1,151 +1,21 @@
 @extends('layouts.opendata')
 
 @section('content')
-<style>
-  :root {
-    --od-page-shell: #eceef5;
-    --od-panel: #f5f6fb;
-    --od-panel-2: #ffffff;
-    --od-text: #2e3345;
-    --od-soft: #7c8295;
-    --od-border: #dde1ec;
-    --od-line: #e8ebf4;
-    --od-accent: #8b5cf6;
-  }
-  .period-theme-wrap {
-    border-radius: 14px;
-    padding: 20px;
-    background: var(--od-page-shell);
-    border: 1px solid var(--od-border);
-  }
-  .period-theme-shell {
-    border-radius: 12px;
-    background: var(--od-panel);
-    padding: 16px;
-    border: 1px solid var(--od-border);
-  }
-  .period-title {
-    margin: 0;
-    color: var(--od-text);
-    font-weight: 700;
-  }
-  .period-subtitle {
-    color: var(--od-soft);
-    font-size: 0.9rem;
-  }
-  .od-btn-primary {
-    border: 0;
-    color: #fff;
-    font-weight: 700;
-    border-radius: 8px;
-    background: #ff4d5e;
-  }
-  .od-btn-primary:hover {
-    color: #fff;
-    filter: brightness(0.98);
-  }
-  .od-btn-outline {
-    border: 1px solid #ccd2e3;
-    color: #59607a;
-    border-radius: 8px;
-    background: #fff;
-    font-weight: 600;
-  }
-  .od-btn-outline:hover {
-    color: #41475d;
-    border-color: #b6bdd2;
-    background: #fff;
-  }
-  .period-hint {
-    background: #fff;
-    border: 1px solid var(--od-border);
-    color: var(--od-soft);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 0.9rem;
-  }
-  .period-table-card {
-    background: var(--od-panel-2);
-    border: 1px solid var(--od-border);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .period-table-toolbar {
-    padding: 14px;
-    border-bottom: 1px solid var(--od-line);
-    background: #fff;
-  }
-  .period-search {
-    max-width: 220px;
-    border-radius: 8px;
-    border: 1px solid #d4d9e8;
-    color: #5f667f;
-    background: #f9fafe;
-  }
-  .period-table th {
-    background: #f1f3f9;
-    color: #525a70;
-    font-size: 0.88rem;
-    font-weight: 700;
-    border-bottom: 1px solid var(--od-line);
-  }
-  .period-table td {
-    color: #343950;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--od-line);
-  }
-  .period-table tr:last-child td {
-    border-bottom: 0;
-  }
-  .od-badge {
-    display: inline-block;
-    border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-  .od-badge-open {
-    background: #ddf4e5;
-    color: #2a8f4f;
-  }
-  .od-badge-close {
-    background: #eceff7;
-    color: #616984;
-  }
-  .period-table .btn-outline-primary {
-    border-color: #c6b6fa;
-    color: var(--od-accent);
-  }
-  .period-table .btn-outline-primary:hover {
-    background: #f2ecff;
-    color: #7448db;
-    border-color: #b9a4f7;
-  }
-  .period-table .btn-outline-dark {
-    border-color: #c9cfdf;
-    color: #4f566f;
-  }
-  .period-table .btn-outline-dark:hover {
-    background: #eef1f8;
-    color: #3e445a;
-    border-color: #b8bfd2;
-  }
-</style>
 
 <div class="period-theme-wrap">
   <div class="period-theme-shell">
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
       <div>
         <h1 class="h5 period-title">Assessment Period List</h1>
-        <div class="period-subtitle">This screen is intended for ASEANstats (admin) only.</div>
+        <div class="period-subtitle">Manage assessment periods for the Open Data Portal.</div>
       </div>
       <div class="d-flex gap-2">
-        <a class="btn od-btn-primary" id="btnCreate" href="/trx/period">Create</a>
+        <button class="btn od-btn-primary" id="btnCreate" type="button">Create</button>
         <button class="btn od-btn-outline" id="btnRefresh" type="button">Refresh</button>
       </div>
     </div>
 
-    <div class="period-hint mb-3" id="periodHint">
+    <div class="period-hint mb-3" id="periodHint" style="display: none">
       Only one active assessment period is allowed at a time.
     </div>
 
@@ -172,11 +42,103 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade period-dialog" id="periodDialog" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0" id="periodDialogTitle">Create/Close Assessment Period [3.3.2]</h5>
+          <div class="period-dialog-subtitle" id="periodDialogSubtitle"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="periodDialogError" class="alert alert-danger d-none mb-3"></div>
+
+        <div id="periodCreateBlock">
+          <div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label" for="periodYear">Year</label>
+                <input type="number" class="form-control" id="periodYear" min="2000" max="2100" placeholder="e.g. 2026">
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-8">
+                <label class="form-label" for="periodDescription">Description</label>
+                <input type="text" class="form-control" id="periodDescription" maxlength="300" placeholder="Assessment period description">
+              </div>
+            </div>
+          </div>
+          <div class="period-config-card">
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+              <strong class="small">Assessment Configuration Rows</strong>
+              <button type="button" class="btn btn-sm od-btn-outline" id="btnAddConfigRow">Add Row</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0" id="tblConfigRows">
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th>Category</th>
+                    <th>Indicator</th>
+                    <th>Dissagregation</th>
+                    <th style="width: 90px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="periodViewBlock" class="d-none">
+          <div class="period-view-grid mb-3">
+            <div class="period-view-item">
+              <p class="period-view-label">Year</p>
+              <p class="period-view-value" id="viewPeriodYear">-</p>
+            </div>
+            <div class="period-view-item">
+              <p class="period-view-label">Status</p>
+              <p class="period-view-value" id="viewPeriodStatus">-</p>
+            </div>
+            <div class="period-view-item">
+              <p class="period-view-label">Created</p>
+              <p class="period-view-value" id="viewPeriodCreated">-</p>
+            </div>
+            <div class="period-view-item">
+              <p class="period-view-label">Closed</p>
+              <p class="period-view-value" id="viewPeriodClosed">-</p>
+            </div>
+          </div>
+          <div class="period-view-item">
+            <p class="period-view-label">Description</p>
+            <p class="period-view-value" id="viewPeriodDescription">-</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn od-btn-outline" type="button" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn od-btn-primary d-none" type="button" id="btnDialogSubmitCreate">Create Period</button>
+        <button class="btn od-btn-primary d-none" type="button" id="btnDialogSubmitClose">Close Period</button>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
   const endpoint = '/api/trx/periods';
+  const periodState = {
+    periods: [],
+    masters: null,
+    selectedPeriod: null,
+    mode: 'create',
+  };
+
+  let periodDialog;
 
   function fmtDateTime(value) {
     if (!value) return '-';
@@ -199,21 +161,15 @@
     const hint = document.getElementById('periodHint');
 
     if (hasActive) {
-      btn.classList.add('disabled');
-      btn.setAttribute('aria-disabled', 'true');
-      btn.addEventListener('click', preventCreateWhenActive);
+      btn.disabled = true;
       hint.textContent = 'Create is disabled because an active assessment period already exists.';
+      hint.style.display = 'block';
       return;
     }
 
-    btn.classList.remove('disabled');
-    btn.removeAttribute('aria-disabled');
-    btn.removeEventListener('click', preventCreateWhenActive);
+    btn.disabled = false;
     hint.textContent = 'Only one active assessment period is allowed at a time.';
-  }
-
-  function preventCreateWhenActive(e) {
-    e.preventDefault();
+    hint.style.display = 'none';
   }
 
   function renderRows(periods) {
@@ -221,12 +177,14 @@
 
     if (!Array.isArray(periods) || periods.length === 0) {
       tb.innerHTML = '<tr><td colspan="5" class="text-muted">No assessment periods found.</td></tr>';
+      periodState.periods = [];
       setCreateAvailability(false);
       return;
     }
 
     const hasActive = periods.some(isOpenPeriod);
     setCreateAvailability(hasActive);
+    periodState.periods = periods;
 
     tb.innerHTML = periods.map((p) => {
       const isOpen = isOpenPeriod(p);
@@ -235,22 +193,222 @@
         : '<span class="od-badge od-badge-close">Close</span>';
 
       const periodId = p.id;
-      const viewUrl = `/trx/period/${periodId}/countries`;
-      const editUrl = `/trx/period?periodId=${periodId}`;
+      const countriesUrl = `/trx/period/${periodId}/countries`;
 
       return `
         <tr>
           <td class="fw-semibold">${p.year ?? '-'}</td>
           <td>${statusBadge}</td>
           <td>
-            <a class="btn btn-sm btn-outline-primary" href="${viewUrl}">View</a>
-            <a class="btn btn-sm btn-outline-dark ms-1" href="${editUrl}">Edit</a>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-action="view-period" data-period-id="${periodId}">View</button>
+            <a class="btn btn-sm btn-outline-dark ms-1" href="${countriesUrl}">Countries</a>
           </td>
           <td class="text-muted small">${fmtDateTime(p.created_date || p.created_at)}</td>
-          <td class="text-muted small">${isOpen ? '-' : fmtDateTime(p.closed_date)}</td>
+          <td class="text-muted small">${isOpen ? '-' : fmtDateTime(p.closed_date || p.modified_date)}</td>
         </tr>
       `;
     }).join('');
+  }
+
+  function setDialogError(message = '') {
+    const el = document.getElementById('periodDialogError');
+    if (!message) {
+      el.classList.add('d-none');
+      el.textContent = '';
+      return;
+    }
+    el.classList.remove('d-none');
+    el.textContent = message;
+  }
+
+  function masterOptions(items) {
+    return (items || [])
+      .filter((x) => x.active === true || x.active === 1 || x.active === '1')
+      .map((x) => `<option value="${x.id}">${x.title}</option>`)
+      .join('');
+  }
+
+  function createConfigRow(initial = {}) {
+    const tr = document.createElement('tr');
+    const sections = masterOptions(periodState.masters.sections);
+    const categories = masterOptions(periodState.masters.categories);
+    const indicators = masterOptions(periodState.masters.indicators);
+    const subIndicators = masterOptions(periodState.masters.subIndicators);
+
+    tr.innerHTML = `
+      <td><select class="form-select form-select-sm" data-field="section">${sections}</select></td>
+      <td><select class="form-select form-select-sm" data-field="category">${categories}</select></td>
+      <td><select class="form-select form-select-sm" data-field="indicator">${indicators}</select></td>
+      <td><select class="form-select form-select-sm" data-field="dissagregation">${subIndicators}</select></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-config-row">Remove</button></td>
+    `;
+
+    if (initial.section) tr.querySelector('[data-field="section"]').value = String(initial.section);
+    if (initial.category) tr.querySelector('[data-field="category"]').value = String(initial.category);
+    if (initial.indicator) tr.querySelector('[data-field="indicator"]').value = String(initial.indicator);
+    if (initial.dissagregation) tr.querySelector('[data-field="dissagregation"]').value = String(initial.dissagregation);
+
+    return tr;
+  }
+
+  function collectConfigRows() {
+    return Array.from(document.querySelectorAll('#tblConfigRows tbody tr')).map((tr) => ({
+      section: Number(tr.querySelector('[data-field="section"]').value),
+      category: Number(tr.querySelector('[data-field="category"]').value),
+      indicator: Number(tr.querySelector('[data-field="indicator"]').value),
+      dissagregation: Number(tr.querySelector('[data-field="dissagregation"]').value),
+    }));
+  }
+
+  async function ensureMastersLoaded() {
+    if (periodState.masters) return;
+
+    const [sections, categories, indicators, subIndicators] = await Promise.all([
+      odFetch('/api/adm/sections'),
+      odFetch('/api/adm/categories'),
+      odFetch('/api/adm/indicators'),
+      odFetch('/api/adm/sub-indicators'),
+    ]);
+
+    periodState.masters = {
+      sections: sections.data || [],
+      categories: categories.data || [],
+      indicators: indicators.data || [],
+      subIndicators: subIndicators.data || [],
+    };
+  }
+
+  function setDialogMode(mode) {
+    periodState.mode = mode;
+
+    const createBlock = document.getElementById('periodCreateBlock');
+    const viewBlock = document.getElementById('periodViewBlock');
+    const createBtn = document.getElementById('btnDialogSubmitCreate');
+    const closeBtn = document.getElementById('btnDialogSubmitClose');
+    const subtitle = document.getElementById('periodDialogSubtitle');
+
+    if (mode === 'create') {
+      createBlock.classList.remove('d-none');
+      viewBlock.classList.add('d-none');
+      createBtn.classList.remove('d-none');
+      closeBtn.classList.add('d-none');
+      subtitle.textContent = 'Create new assessment period configuration.';
+      return;
+    }
+
+    createBlock.classList.add('d-none');
+    viewBlock.classList.remove('d-none');
+    createBtn.classList.add('d-none');
+    closeBtn.classList.remove('d-none');
+    subtitle.textContent = 'View period status and close active period.';
+  }
+
+  async function openCreateDialog() {
+    if (document.getElementById('btnCreate').disabled) return;
+
+    setDialogError('');
+    setDialogMode('create');
+    document.getElementById('periodYear').value = new Date().getFullYear();
+    document.getElementById('periodDescription').value = '';
+
+    try {
+      await ensureMastersLoaded();
+      const tbody = document.querySelector('#tblConfigRows tbody');
+      tbody.innerHTML = '';
+      tbody.appendChild(createConfigRow());
+      periodDialog.show();
+    } catch (err) {
+      setDialogError(err.message || 'Failed to load period master data.');
+      periodDialog.show();
+    }
+  }
+
+  function openViewDialog(periodId) {
+    const period = periodState.periods.find((p) => String(p.id) === String(periodId));
+    if (!period) return;
+
+    periodState.selectedPeriod = period;
+    setDialogError('');
+    setDialogMode('view');
+
+    const open = isOpenPeriod(period);
+    document.getElementById('viewPeriodYear').textContent = period.year ?? '-';
+    document.getElementById('viewPeriodStatus').innerHTML = open
+      ? '<span class="od-badge od-badge-open">Open</span>'
+      : '<span class="od-badge od-badge-close">Close</span>';
+    document.getElementById('viewPeriodCreated').textContent = fmtDateTime(period.created_date || period.created_at);
+    document.getElementById('viewPeriodClosed').textContent = open
+      ? '-'
+      : fmtDateTime(period.closed_date || period.modified_date);
+    document.getElementById('viewPeriodDescription').textContent = period.description || '-';
+
+    const closeBtn = document.getElementById('btnDialogSubmitClose');
+    closeBtn.disabled = !open;
+    closeBtn.textContent = open ? 'Close Period' : 'Period Already Closed';
+
+    periodDialog.show();
+  }
+
+  async function submitCreatePeriod() {
+    setDialogError('');
+
+    const year = Number(document.getElementById('periodYear').value);
+    const description = document.getElementById('periodDescription').value.trim();
+    const rows = collectConfigRows();
+
+    if (!year || year < 2000 || year > 2100) {
+      setDialogError('Year must be between 2000 and 2100.');
+      return;
+    }
+    if (!description) {
+      setDialogError('Description is required.');
+      return;
+    }
+    if (rows.length === 0) {
+      setDialogError('At least one configuration row is required.');
+      return;
+    }
+    if (rows.some((r) => !r.section || !r.category || !r.indicator || !r.dissagregation)) {
+      setDialogError('All configuration row fields are required.');
+      return;
+    }
+
+    try {
+      const btn = document.getElementById('btnDialogSubmitCreate');
+      btn.disabled = true;
+      await odFetch('/api/trx/period', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, description, rows }),
+      });
+      periodDialog.hide();
+      await loadPeriods();
+    } catch (err) {
+      setDialogError(err.message || 'Failed to create period.');
+    } finally {
+      document.getElementById('btnDialogSubmitCreate').disabled = false;
+    }
+  }
+
+  async function submitClosePeriod() {
+    if (!periodState.selectedPeriod) return;
+    setDialogError('');
+
+    const periodId = periodState.selectedPeriod.id;
+    const confirmed = confirm(`Close assessment period ${periodState.selectedPeriod.year}?`);
+    if (!confirmed) return;
+
+    try {
+      const btn = document.getElementById('btnDialogSubmitClose');
+      btn.disabled = true;
+      await odFetch(`/api/trx/period/${periodId}`, { method: 'PUT' });
+      periodDialog.hide();
+      await loadPeriods();
+    } catch (err) {
+      setDialogError(err.message || 'Failed to close period.');
+    } finally {
+      document.getElementById('btnDialogSubmitClose').disabled = false;
+    }
   }
 
   async function loadPeriods() {
@@ -279,7 +437,30 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    periodDialog = new bootstrap.Modal(document.getElementById('periodDialog'));
+
+    document.getElementById('btnCreate').addEventListener('click', openCreateDialog);
     document.getElementById('btnRefresh').addEventListener('click', loadPeriods);
+    document.getElementById('btnDialogSubmitCreate').addEventListener('click', submitCreatePeriod);
+    document.getElementById('btnDialogSubmitClose').addEventListener('click', submitClosePeriod);
+    document.getElementById('btnAddConfigRow').addEventListener('click', () => {
+      document.querySelector('#tblConfigRows tbody').appendChild(createConfigRow());
+    });
+
+    document.querySelector('#tblConfigRows tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="remove-config-row"]');
+      if (!btn) return;
+      const tbody = document.querySelector('#tblConfigRows tbody');
+      if (tbody.querySelectorAll('tr').length === 1) return;
+      btn.closest('tr').remove();
+    });
+
+    document.getElementById('tbPeriods').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="view-period"]');
+      if (!btn) return;
+      openViewDialog(btn.getAttribute('data-period-id'));
+    });
+
     loadPeriods();
   });
 </script>
