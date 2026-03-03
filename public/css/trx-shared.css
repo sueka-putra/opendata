@@ -227,3 +227,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+.profile-shell {
+  max-width: 980px;
+}
+
+.profile-card {
+  border: 1px solid var(--od-border);
+  border-radius: 12px;
+  background: var(--od-panel-2);
+  padding: 16px;
+}
+
+.profile-section-title {
+  color: var(--od-text);
+  font-weight: 700;
+}
+
+.profile-section-subtitle {
+  color: var(--od-soft);
+  font-size: 0.9rem;
+}
+
+.profile-form-label {
+  color: #4a5167;
+  font-weight: 600;
+  font-size: 0.86rem;
+}
+
+.profile-card .form-control {
+  border-color: #d4d9e8;
+}
+
+.profile-link-btn {
+  color: var(--od-accent);
+  text-decoration: none;
+  font-size: inherit;
+}
+
+.profile-link-btn:hover {
+  color: #7448db;
+  text-decoration: underline;
+}

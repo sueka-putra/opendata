@@ -1,8 +1,104 @@
 @extends('layouts.opendata')
 
 @section('content')
-<div class="p-4 bg-light rounded-3">
-  <h1 class="h4 mb-2">Welcome</h1>
-  <p class="mb-0 text-muted">Use the navigation bar to manage master data and complete assessments.</p>
+<div class="period-theme-wrap">
+  <div class="period-theme-shell">
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+      <div>
+        <h1 class="h5 period-title mb-1">List of Assessments by Country</h1>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        @if(auth()->user()?->isAdmin())
+          <label class="form-label mb-0" for="countryFilter">Country</label>
+          <select class="form-select form-select-sm" id="countryFilter" style="min-width:240px;"></select>
+        @endif
+      </div>
+    </div>
+
+    <div class="period-table-card">
+      <div class="table-responsive">
+        <table class="table period-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width:90px;">Year</th>
+              <th>Description</th>
+              <th style="width:160px;">Country</th>
+              <th style="width:130px;">Status</th>
+              <th style="width:130px;">Period</th>
+              <th style="width:110px;"></th>
+            </tr>
+          </thead>
+          <tbody id="assessmentRows">
+            <tr><td colspan="6" class="text-muted">Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+const rowContainer = document.getElementById('assessmentRows');
+const countryFilter = document.getElementById('countryFilter');
+
+function renderRows(rows) {
+  if (!rows.length) {
+    rowContainer.innerHTML = '<tr><td colspan="6" class="text-muted">No assessment data found.</td></tr>';
+    return;
+  }
+
+  rowContainer.innerHTML = rows.map((r) => {
+    const statusBadge = r.is_submitted
+      ? '<span class="badge text-bg-success">Submitted</span>'
+      : '<span class="badge text-bg-warning">Draft</span>';
+    const periodBadge = r.active
+      ? '<span class="badge text-bg-primary">Active</span>'
+      : '<span class="badge text-bg-secondary">Closed</span>';
+    const formUrl = `/trx/form?periodid=${encodeURIComponent(r.period_id)}&country_code=${encodeURIComponent(r.country_code)}`;
+
+    return `
+      <tr>
+        <td>${r.year}</td>
+        <td>${r.description || '-'}</td>
+        <td>${r.country_name || r.country_code}</td>
+        <td>${statusBadge}</td>
+        <td>${periodBadge}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${formUrl}">Open</a></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function loadAssessments() {
+  try {
+    let url = '/api/trx/dashboard-assessments';
+    if (countryFilter && countryFilter.value) {
+      url += `?country_code=${encodeURIComponent(countryFilter.value)}`;
+    }
+
+    const response = await odFetch(url);
+    const data = response.data || {};
+
+    if (countryFilter && Array.isArray(data.country_options)) {
+      const current = data.selected_country || '';
+      countryFilter.innerHTML = data.country_options
+        .map((opt) => `<option value="${opt.code}">${opt.name}</option>`)
+        .join('');
+      if (current) countryFilter.value = current;
+    }
+
+    renderRows(data.rows || []);
+  } catch (error) {
+    rowContainer.innerHTML = `<tr><td colspan="6" class="text-danger">${error.message}</td></tr>`;
+  }
+}
+
+if (countryFilter) {
+  countryFilter.addEventListener('change', loadAssessments);
+}
+
+loadAssessments();
+</script>
+@endpush

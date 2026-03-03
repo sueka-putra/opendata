@@ -24,6 +24,32 @@ class PeriodApiController extends Controller
         return $this->ok($periods);
     }
 
+    public function rows(int $periodId)
+    {
+        AssessmentPeriod::findOrFail($periodId);
+
+        $rows = DB::table('od_trx_assessment_period_rows as pr')
+            ->join('od_mst_sections as s', 'pr.section_id', '=', 's.id')
+            ->join('od_mst_categories as c', 'pr.category_id', '=', 'c.id')
+            ->join('od_mst_indicators as i', 'pr.indicator_id', '=', 'i.id')
+            ->join('od_mst_aggregations as a', 'pr.sub_indicator_id', '=', 'a.id')
+            ->where('pr.period_id', $periodId)
+            ->orderBy('pr.id')
+            ->get([
+                'pr.id',
+                'pr.section_id',
+                'pr.category_id',
+                'pr.indicator_id',
+                'pr.sub_indicator_id',
+                's.title as section_title',
+                'c.title as category_title',
+                'i.title as indicator_title',
+                'a.title as disaggregation_title',
+            ]);
+
+        return $this->ok($rows);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([

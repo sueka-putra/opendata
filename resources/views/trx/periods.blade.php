@@ -116,6 +116,27 @@
             <p class="period-view-label">Description</p>
             <p class="period-view-value" id="viewPeriodDescription">-</p>
           </div>
+          <div class="period-config-card mt-3">
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+              <strong class="small">Configuration Rows</strong>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 70px;">No</th>
+                    <th>Section</th>
+                    <th>Category</th>
+                    <th>Indicator</th>
+                    <th>Disaggregation</th>
+                  </tr>
+                </thead>
+                <tbody id="viewConfigRows">
+                  <tr><td colspan="5" class="text-muted">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -322,8 +343,7 @@
       periodDialog.show();
     }
   }
-
-  function openViewDialog(periodId) {
+  async function openViewDialog(periodId) {
     const period = periodState.periods.find((p) => String(p.id) === String(periodId));
     if (!period) return;
 
@@ -341,12 +361,35 @@
       ? '-'
       : fmtDateTime(period.closed_date || period.modified_date);
     document.getElementById('viewPeriodDescription').textContent = period.description || '-';
+    const viewRows = document.getElementById('viewConfigRows');
+    viewRows.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
 
     const closeBtn = document.getElementById('btnDialogSubmitClose');
     closeBtn.disabled = !open;
     closeBtn.textContent = open ? 'Close Period' : 'Period Already Closed';
 
     periodDialog.show();
+
+    try {
+      const j = await odFetch(`/api/trx/period/${periodId}/rows`);
+      const rows = Array.isArray(j.data) ? j.data : [];
+      if (!rows.length) {
+        viewRows.innerHTML = '<tr><td colspan="5" class="text-muted">No configuration rows found.</td></tr>';
+        return;
+      }
+
+      viewRows.innerHTML = rows.map((r, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${r.section_title || '-'}</td>
+          <td>${r.category_title || '-'}</td>
+          <td>${r.indicator_title || '-'}</td>
+          <td>${r.disaggregation_title || '-'}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      viewRows.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load period configuration rows.'}</td></tr>`;
+    }
   }
 
   async function submitCreatePeriod() {
@@ -465,3 +508,4 @@
   });
 </script>
 @endpush
+

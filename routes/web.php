@@ -37,7 +37,7 @@ Route::middleware(['auth'])->group(function () {
             Route::view('/period/{periodId}/countries', 'trx.period_countries')->name('trx.period_countries');
         });
 
-        Route::view('/country', 'trx.country_list')->name('trx.country_list');
+        Route::view('/country', 'dashboard')->name('trx.country_list');
         Route::view('/form', 'trx.assessment_form')->name('trx.form');
     });
 });

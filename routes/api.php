@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Admin\UserApiController;
 use App\Http\Controllers\Api\Trx\PeriodApiController;
 use App\Http\Controllers\Api\Trx\CountryApiController;
 use App\Http\Controllers\Api\Trx\FormApiController;
+use App\Http\Controllers\Api\Trx\DashboardAssessmentApiController;
 
 Route::middleware(['web', 'auth'])->group(function () {
 
@@ -40,6 +41,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Transactions
     Route::prefix('trx')->group(function () {
         Route::get('/periods', [PeriodApiController::class, 'index']);
+        Route::get('/period/{periodId}/rows', [PeriodApiController::class, 'rows'])->middleware('admin.only');
         Route::post('/period', [PeriodApiController::class, 'store'])->middleware('admin.only');
         Route::put('/period/{periodId}', [PeriodApiController::class, 'close'])->middleware('admin.only');
 
@@ -47,5 +49,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
         Route::get('/form', [FormApiController::class, 'show']);
         Route::post('/form', [FormApiController::class, 'update']);
+        Route::get('/dashboard-assessments', [DashboardAssessmentApiController::class, 'index']);
     });
 });
