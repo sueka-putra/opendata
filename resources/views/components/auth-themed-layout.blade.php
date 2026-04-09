@@ -7,6 +7,7 @@
     <title>{{ $pageTitle ?? 'Authentication' }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=poppins:400,500,600,700&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/x-icon" href="/img/opendata.png">
     <style>
         :root {
             --bg-start: #6875de;
@@ -245,8 +246,8 @@
     <div class="auth-shell">
         <aside class="brand-panel">
             <img src="{{ asset('img/ASEAN.png') }}" alt="ASEAN" class="brand-logo">
-            <h2 class="brand-title">Open Data Self-</h2>
-            <p class="brand-subtitle">Assessment</p>
+            <h1 class="brand-title">Open Data</h1>
+            <h3 class="brand-title" >Self-Assessment</h3>
             <p class="brand-copy">
                 A dedicated platform for working groups to conduct the Open Data Self-Assessment and compute Open Data Scores across Coverage and Openness
             </p>

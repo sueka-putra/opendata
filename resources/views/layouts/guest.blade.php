@@ -23,10 +23,13 @@
                 <div style="position: absolute; bottom: -200px; left: -200px; width: 400px; height: 400px; background: #6366f1; border-radius: 50%; opacity: 0.1;"></div>
                 
                 <!-- Content -->
-                <div style="position: relative; z-index: 10; text-align: center; max-width: 400px;">
+                < style="position: relative; z-index: 10; text-align: center; max-width: 400px;">
                     <!-- ASEAN Image -->
                     <img src="/img/ASEAN.png" alt="ASEAN" style="width: 200px; height: auto; margin-bottom: 2rem; display: block; margin-left: auto; margin-right: auto;">
                     
+                    <h1 style="font-size: 1.875rem; font-weight: bold; color: white; margin-bottom: 1.5rem; line-height: 1.3;">
+                        Open Data
+                    </h1>
                     <h1 style="font-size: 1.875rem; font-weight: bold; color: white; margin-bottom: 1.5rem; line-height: 1.3;">
                         Open Data Self-Assessment
                     </h1>
