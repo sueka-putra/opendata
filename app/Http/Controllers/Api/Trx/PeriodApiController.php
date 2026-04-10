@@ -7,7 +7,6 @@ use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\AssessmentCountry;
 use App\Models\AssessmentCountryRow;
 use App\Models\AssessmentPeriod;
-use App\Models\AssessmentPeriodRow;
 use App\Models\Country;
 use App\Services\AuditLogger;
 use App\Services\ScoreService;
@@ -20,32 +19,56 @@ class PeriodApiController extends Controller
 
     public function index()
     {
-        $periods = AssessmentPeriod::orderByDesc('year')->get();
+        $periods = DB::table('od_trx_assessment_periods as p')
+            ->leftJoin('od_mst_configurations as cfg', 'p.config_id', '=', 'cfg.id')
+            ->orderByDesc('p.year')
+            ->select([
+                'p.id',
+                'p.year',
+                'p.description',
+                'p.active',
+                'p.config_id',
+                'p.closed_date',
+                'p.created_date',
+                'p.modified_date',
+                'cfg.title as config_title',
+            ])
+            ->get();
         return $this->ok($periods);
+    }
+
+    public function configurations()
+    {
+        $configs = DB::table('od_mst_configurations as cfg')
+            ->leftJoin('od_mst_configuration_rows as r', 'r.config_id', '=', 'cfg.id')
+            ->groupBy('cfg.id', 'cfg.title', 'cfg.description')
+            ->orderByDesc('cfg.id')
+            ->select([
+                'cfg.id',
+                'cfg.title',
+                'cfg.description',
+                DB::raw('COUNT(r.id) as row_count'),
+            ])
+            ->get();
+
+        return $this->ok($configs);
+    }
+
+    public function configurationRows(int $configId)
+    {
+        $exists = DB::table('od_mst_configurations')->where('id', $configId)->exists();
+        if (!$exists) {
+            abort(404);
+        }
+
+        $rows = $this->fetchConfigurationRows($configId);
+        return $this->ok($rows);
     }
 
     public function rows(int $periodId)
     {
-        AssessmentPeriod::findOrFail($periodId);
-
-        $rows = DB::table('od_trx_assessment_period_rows as pr')
-            ->join('od_mst_sections as s', 'pr.section_id', '=', 's.id')
-            ->join('od_mst_categories as c', 'pr.category_id', '=', 'c.id')
-            ->join('od_mst_indicators as i', 'pr.indicator_id', '=', 'i.id')
-            ->join('od_mst_aggregations as a', 'pr.sub_indicator_id', '=', 'a.id')
-            ->where('pr.period_id', $periodId)
-            ->orderBy('pr.id')
-            ->get([
-                'pr.id',
-                'pr.section_id',
-                'pr.category_id',
-                'pr.indicator_id',
-                'pr.sub_indicator_id',
-                's.title as section_title',
-                'c.title as category_title',
-                'i.title as indicator_title',
-                'a.title as disaggregation_title',
-            ]);
+        $period = AssessmentPeriod::findOrFail($periodId);
+        $rows = $this->fetchConfigurationRows((int) $period->config_id);
 
         return $this->ok($rows);
     }
@@ -55,11 +78,7 @@ class PeriodApiController extends Controller
         $data = $request->validate([
             'year' => 'required|integer|min:2000|max:2100',
             'description' => 'required|string|max:300',
-            'rows' => 'required|array|min:1',
-            'rows.*.section' => 'required|integer',
-            'rows.*.category' => 'required|integer',
-            'rows.*.indicator' => 'required|integer',
-            'rows.*.dissagregation' => 'required|integer',
+            'config_id' => 'required|integer|exists:od_mst_configurations,id',
         ]);
 
         $hasActive = AssessmentPeriod::where('active', 1)->exists();
@@ -67,46 +86,38 @@ class PeriodApiController extends Controller
             return $this->fail('Active assessment period already exists', 409);
         }
 
+        $yearExists = AssessmentPeriod::where('year', $data['year'])->exists();
+        if ($yearExists) {
+            return $this->fail('Selected year already exists. Please choose a different year.', 409);
+        }
+
+        $configRowIds = DB::table('od_mst_configuration_rows')
+            ->where('config_id', $data['config_id'])
+            ->orderBy('seq_no')
+            ->pluck('id');
+        if ($configRowIds->isEmpty()) {
+            return $this->fail('Selected configuration has no rows', 422);
+        }
+
         $userId = (int) $request->user()->id;
 
         $periodId = null;
 
-        DB::transaction(function () use ($data, $userId, &$periodId) {
+        DB::transaction(function () use ($data, $userId, $configRowIds, &$periodId) {
             $period = AssessmentPeriod::create([
                 'year' => $data['year'],
                 'description' => $data['description'],
                 'active' => 1,
+                'config_id' => $data['config_id'],
                 'created_by' => $userId,
                 'modified_by' => $userId,
             ]);
             $periodId = $period->id;
 
-            // Insert configuration rows (ensure unique combination)
-            $seen = [];
-            foreach ($data['rows'] as $r) {
-                $key = implode('-', [$r['section'], $r['category'], $r['indicator'], $r['dissagregation']]);
-                if (isset($seen[$key])) {
-                    continue;
-                }
-                $seen[$key] = true;
-                AssessmentPeriodRow::create([
-                    'period_id' => $period->id,
-                    'section_id' => $r['section'],
-                    'category_id' => $r['category'],
-                    'indicator_id' => $r['indicator'],
-                    'sub_indicator_id' => $r['dissagregation'],
-                ]);
-            }
+            // Create assessed entities from ASEAN countries only
+            $countryCodes = Country::where('is_asean', 1)->pluck('code')->toArray();
 
-            $periodRowIds = AssessmentPeriodRow::where('period_id', $period->id)->pluck('id');
-
-            // Create 11 AMS + ASEANstats ('00') as assessed entities
-            $ams = Country::where('is_asean', 1)->pluck('code')->toArray();
-            if (!in_array(config('opendata.admin_country_code', '00'), $ams, true)) {
-                $ams[] = config('opendata.admin_country_code', '00');
-            }
-
-            foreach ($ams as $cc) {
+            foreach ($countryCodes as $cc) {
                 $ac = AssessmentCountry::create([
                     'period_id' => $period->id,
                     'country_code' => $cc,
@@ -116,10 +127,10 @@ class PeriodApiController extends Controller
                 ]);
 
                 // Pre-create detail rows
-                foreach ($periodRowIds as $prId) {
+                foreach ($configRowIds as $configRowId) {
                     AssessmentCountryRow::create([
                         'assessment_country_id' => $ac->id,
-                        'assessment_period_row_id' => $prId,
+                        'row_id' => $configRowId,
                         'series' => '',
                         'machine_readability' => 0,
                         'proprietary' => 0,
@@ -156,5 +167,29 @@ class PeriodApiController extends Controller
 
         AuditLogger::log($request, 'close period', 0);
         return $this->ok(null, 'closed');
+    }
+
+    private function fetchConfigurationRows(int $configId)
+    {
+        return DB::table('od_mst_configuration_rows as r')
+            ->join('od_mst_sections as s', 'r.section_id', '=', 's.id')
+            ->join('od_mst_categories as c', 'r.category_id', '=', 'c.id')
+            ->join('od_mst_indicators as i', 'r.indicator_id', '=', 'i.id')
+            ->leftJoin('od_mst_aggregations as a', 'r.sub_indicator_id', '=', 'a.id')
+            ->where('r.config_id', $configId)
+            ->orderBy('r.seq_no')
+            ->orderBy('r.id')
+            ->get([
+                'r.id',
+                'r.seq_no',
+                'r.section_id',
+                'r.category_id',
+                'r.indicator_id',
+                'r.sub_indicator_id',
+                's.title as section_title',
+                'c.title as category_title',
+                'i.title as indicator_title',
+                'a.title as disaggregation_title',
+            ]);
     }
 }

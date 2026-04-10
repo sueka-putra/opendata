@@ -41,6 +41,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Transactions
     Route::prefix('trx')->group(function () {
         Route::get('/periods', [PeriodApiController::class, 'index']);
+        Route::get('/configurations', [PeriodApiController::class, 'configurations'])->middleware('admin.only');
+        Route::get('/configuration/{configId}/rows', [PeriodApiController::class, 'configurationRows'])->middleware('admin.only');
         Route::get('/period/{periodId}/rows', [PeriodApiController::class, 'rows'])->middleware('admin.only');
         Route::post('/period', [PeriodApiController::class, 'store'])->middleware('admin.only');
         Route::put('/period/{periodId}', [PeriodApiController::class, 'close'])->middleware('admin.only');

@@ -21,5 +21,5 @@ class AssessmentCountryRow extends Model
     ];
 
     public function assessmentCountry(){ return $this->belongsTo(AssessmentCountry::class, 'assessment_country_id'); }
-    public function periodRow(){ return $this->belongsTo(AssessmentPeriodRow::class, 'assessment_period_row_id'); }
+    public function configurationRow(){ return $this->belongsTo(ConfigurationRow::class, 'row_id'); }
 }

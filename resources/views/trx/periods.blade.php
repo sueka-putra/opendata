@@ -70,24 +70,32 @@
                 <input type="text" class="form-control" id="periodDescription" maxlength="300" placeholder="Assessment period description">
               </div>
             </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-8">
+                <label class="form-label" for="periodConfig">Configuration</label>
+                <select class="form-select" id="periodConfig"></select>
+                <div class="form-text" id="periodConfigHint">Choose configuration used by this assessment period.</div>
+              </div>
+            </div>
           </div>
           <div class="period-config-card">
             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-              <strong class="small">Assessment Configuration Rows</strong>
-              <button type="button" class="btn btn-sm od-btn-outline" id="btnAddConfigRow">Add Row</button>
+              <strong class="small">Selected Configuration Rows</strong>
             </div>
             <div class="table-responsive">
               <table class="table table-sm mb-0" id="tblConfigRows">
                 <thead>
                   <tr>
+                    <th style="width: 70px;">No</th>
                     <th>Section</th>
                     <th>Category</th>
                     <th>Indicator</th>
                     <th>Dissagregation</th>
-                    <th style="width: 90px;">Action</th>
                   </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                  <tr><td colspan="5" class="text-muted">Select a configuration to preview rows.</td></tr>
+                </tbody>
               </table>
             </div>
           </div>
@@ -115,6 +123,10 @@
           <div class="period-view-item">
             <p class="period-view-label">Description</p>
             <p class="period-view-value" id="viewPeriodDescription">-</p>
+          </div>
+          <div class="period-view-item mt-2">
+            <p class="period-view-label">Configuration</p>
+            <p class="period-view-value" id="viewPeriodConfiguration">-</p>
           </div>
           <div class="period-config-card mt-3">
             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
@@ -154,7 +166,7 @@
   const endpoint = '/api/trx/periods';
   const periodState = {
     periods: [],
-    masters: null,
+    configurations: null,
     selectedPeriod: null,
     mode: 'create',
   };
@@ -242,61 +254,52 @@
     el.textContent = message;
   }
 
-  function masterOptions(items) {
-    return (items || [])
-      .filter((x) => x.active === true || x.active === 1 || x.active === '1')
-      .map((x) => `<option value="${x.id}">${x.title}</option>`)
-      .join('');
+  function renderConfigRows(rows, targetSelector) {
+    const tbody = document.querySelector(targetSelector);
+    if (!tbody) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No configuration rows found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((r, idx) => `
+      <tr>
+        <td>${r.seq_no ?? (idx + 1)}</td>
+        <td>${r.section_title || '-'}</td>
+        <td>${r.category_title || '-'}</td>
+        <td>${r.indicator_title || '-'}</td>
+        <td>${r.disaggregation_title || '-'}</td>
+      </tr>
+    `).join('');
   }
 
-  function createConfigRow(initial = {}) {
-    const tr = document.createElement('tr');
-    const sections = masterOptions(periodState.masters.sections);
-    const categories = masterOptions(periodState.masters.categories);
-    const indicators = masterOptions(periodState.masters.indicators);
-    const subIndicators = masterOptions(periodState.masters.subIndicators);
+  async function ensureConfigurationsLoaded() {
+    if (periodState.configurations) return;
 
-    tr.innerHTML = `
-      <td><select class="form-select form-select-sm" data-field="section">${sections}</select></td>
-      <td><select class="form-select form-select-sm" data-field="category">${categories}</select></td>
-      <td><select class="form-select form-select-sm" data-field="indicator">${indicators}</select></td>
-      <td><select class="form-select form-select-sm" data-field="dissagregation">${subIndicators}</select></td>
-      <td><button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-config-row">Remove</button></td>
-    `;
-
-    if (initial.section) tr.querySelector('[data-field="section"]').value = String(initial.section);
-    if (initial.category) tr.querySelector('[data-field="category"]').value = String(initial.category);
-    if (initial.indicator) tr.querySelector('[data-field="indicator"]').value = String(initial.indicator);
-    if (initial.dissagregation) tr.querySelector('[data-field="dissagregation"]').value = String(initial.dissagregation);
-
-    return tr;
+    const response = await odFetch('/api/trx/configurations');
+    const configs = Array.isArray(response.data) ? response.data : [];
+    periodState.configurations = configs;
   }
 
-  function collectConfigRows() {
-    return Array.from(document.querySelectorAll('#tblConfigRows tbody tr')).map((tr) => ({
-      section: Number(tr.querySelector('[data-field="section"]').value),
-      category: Number(tr.querySelector('[data-field="category"]').value),
-      indicator: Number(tr.querySelector('[data-field="indicator"]').value),
-      dissagregation: Number(tr.querySelector('[data-field="dissagregation"]').value),
-    }));
-  }
+  async function previewConfiguration(configId) {
+    const tbody = document.querySelector('#tblConfigRows tbody');
+    const hint = document.getElementById('periodConfigHint');
 
-  async function ensureMastersLoaded() {
-    if (periodState.masters) return;
+    if (!configId) {
+      hint.textContent = 'Choose configuration used by this assessment period.';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Select a configuration to preview rows.</td></tr>';
+      return;
+    }
 
-    const [sections, categories, indicators, subIndicators] = await Promise.all([
-      odFetch('/api/adm/sections'),
-      odFetch('/api/adm/categories'),
-      odFetch('/api/adm/indicators'),
-      odFetch('/api/adm/sub-indicators'),
-    ]);
+    const selected = (periodState.configurations || []).find((cfg) => String(cfg.id) === String(configId));
+    if (selected) {
+      hint.textContent = `${selected.description || '-'} (rows: ${selected.row_count ?? 0})`;
+    }
 
-    periodState.masters = {
-      sections: sections.data || [],
-      categories: categories.data || [],
-      indicators: indicators.data || [],
-      subIndicators: subIndicators.data || [],
-    };
+    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
+    const response = await odFetch(`/api/trx/configuration/${configId}/rows`);
+    renderConfigRows(response.data || [], '#tblConfigRows tbody');
   }
 
   function setDialogMode(mode) {
@@ -333,13 +336,23 @@
     document.getElementById('periodDescription').value = '';
 
     try {
-      await ensureMastersLoaded();
-      const tbody = document.querySelector('#tblConfigRows tbody');
-      tbody.innerHTML = '';
-      tbody.appendChild(createConfigRow());
+      await ensureConfigurationsLoaded();
+      const configSelect = document.getElementById('periodConfig');
+      const options = (periodState.configurations || []).map((cfg) => (
+        `<option value="${cfg.id}">${cfg.title}</option>`
+      )).join('');
+      configSelect.innerHTML = options;
+
+      if (!periodState.configurations || periodState.configurations.length === 0) {
+        setDialogError('No assessment configuration found. Please create configuration first.');
+        document.querySelector('#tblConfigRows tbody').innerHTML = '<tr><td colspan="5" class="text-muted">No configuration available.</td></tr>';
+      } else {
+        await previewConfiguration(configSelect.value);
+      }
+
       periodDialog.show();
     } catch (err) {
-      setDialogError(err.message || 'Failed to load period master data.');
+      setDialogError(err.message || 'Failed to load period configuration data.');
       periodDialog.show();
     }
   }
@@ -361,6 +374,7 @@
       ? '-'
       : fmtDateTime(period.closed_date || period.modified_date);
     document.getElementById('viewPeriodDescription').textContent = period.description || '-';
+    document.getElementById('viewPeriodConfiguration').textContent = period.config_title || '-';
     const viewRows = document.getElementById('viewConfigRows');
     viewRows.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
 
@@ -373,20 +387,7 @@
     try {
       const j = await odFetch(`/api/trx/period/${periodId}/rows`);
       const rows = Array.isArray(j.data) ? j.data : [];
-      if (!rows.length) {
-        viewRows.innerHTML = '<tr><td colspan="5" class="text-muted">No configuration rows found.</td></tr>';
-        return;
-      }
-
-      viewRows.innerHTML = rows.map((r, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${r.section_title || '-'}</td>
-          <td>${r.category_title || '-'}</td>
-          <td>${r.indicator_title || '-'}</td>
-          <td>${r.disaggregation_title || '-'}</td>
-        </tr>
-      `).join('');
+      renderConfigRows(rows, '#viewConfigRows');
     } catch (err) {
       viewRows.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load period configuration rows.'}</td></tr>`;
     }
@@ -397,7 +398,7 @@
 
     const year = Number(document.getElementById('periodYear').value);
     const description = document.getElementById('periodDescription').value.trim();
-    const rows = collectConfigRows();
+    const configId = Number(document.getElementById('periodConfig').value);
 
     if (!year || year < 2000 || year > 2100) {
       setDialogError('Year must be between 2000 and 2100.');
@@ -407,12 +408,8 @@
       setDialogError('Description is required.');
       return;
     }
-    if (rows.length === 0) {
-      setDialogError('At least one configuration row is required.');
-      return;
-    }
-    if (rows.some((r) => !r.section || !r.category || !r.indicator || !r.dissagregation)) {
-      setDialogError('All configuration row fields are required.');
+    if (!configId) {
+      setDialogError('Configuration is required.');
       return;
     }
 
@@ -422,7 +419,7 @@
       await odFetch('/api/trx/period', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year, description, rows }),
+        body: JSON.stringify({ year, description, config_id: configId }),
       });
       periodDialog.hide();
       await loadPeriods();
@@ -486,16 +483,11 @@
     document.getElementById('btnRefresh').addEventListener('click', loadPeriods);
     document.getElementById('btnDialogSubmitCreate').addEventListener('click', submitCreatePeriod);
     document.getElementById('btnDialogSubmitClose').addEventListener('click', submitClosePeriod);
-    document.getElementById('btnAddConfigRow').addEventListener('click', () => {
-      document.querySelector('#tblConfigRows tbody').appendChild(createConfigRow());
-    });
-
-    document.querySelector('#tblConfigRows tbody').addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-action="remove-config-row"]');
-      if (!btn) return;
-      const tbody = document.querySelector('#tblConfigRows tbody');
-      if (tbody.querySelectorAll('tr').length === 1) return;
-      btn.closest('tr').remove();
+    document.getElementById('periodConfig').addEventListener('change', (e) => {
+      previewConfiguration(e.target.value).catch((err) => {
+        const tbody = document.querySelector('#tblConfigRows tbody');
+        tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load configuration rows.'}</td></tr>`;
+      });
     });
 
     document.getElementById('tbPeriods').addEventListener('click', (e) => {
