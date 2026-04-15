@@ -6,7 +6,7 @@
   <div class="period-theme-shell">
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
       <div>
-        <h1 class="h5 period-title">Assessment Period List</h1>
+        <h1 class="h5 period-title">Assessment Period Histories</h1>
         <div class="period-subtitle">Manage assessment periods for the Open Data Portal.</div>
       </div>
       <div class="d-flex gap-2">
@@ -31,7 +31,7 @@
               <th style="width: 140px;">Status</th>
               <th style="width: 240px;">Actions</th>
               <th style="width: 210px;">Create Time</th>
-              <th style="width: 210px;">Closed Time</th>
+              <th style="width: 210px;">Completed Time</th>
             </tr>
           </thead>
           <tbody id="tbPeriods">
@@ -48,7 +48,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div>
-          <h5 class="modal-title mb-0" id="periodDialogTitle">Create/Close Assessment Period [3.3.2]</h5>
+          <h5 class="modal-title mb-0" id="periodDialogTitle">Create/Close Assessment Period</h5>
           <div class="period-dialog-subtitle" id="periodDialogSubtitle"></div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -116,7 +116,7 @@
               <p class="period-view-value" id="viewPeriodCreated">-</p>
             </div>
             <div class="period-view-item">
-              <p class="period-view-label">Closed</p>
+              <p class="period-view-label">Completed</p>
               <p class="period-view-value" id="viewPeriodClosed">-</p>
             </div>
           </div>
@@ -192,17 +192,14 @@
   function setCreateAvailability(hasActive) {
     const btn = document.getElementById('btnCreate');
     const hint = document.getElementById('periodHint');
+    hint.style.display = 'none';
 
     if (hasActive) {
-      btn.disabled = true;
-      hint.textContent = 'Create is disabled because an active assessment period already exists.';
-      hint.style.display = 'block';
+      btn.classList.add('d-none');
       return;
     }
 
-    btn.disabled = false;
-    hint.textContent = 'Only one active assessment period is allowed at a time.';
-    hint.style.display = 'none';
+    btn.classList.remove('d-none');
   }
 
   function renderRows(periods) {
@@ -223,7 +220,7 @@
       const isOpen = isOpenPeriod(p);
       const statusBadge = isOpen
         ? '<span class="od-badge od-badge-open">Open</span>'
-        : '<span class="od-badge od-badge-close">Close</span>';
+        : '<span class="od-badge od-badge-close">Completed</span>';
 
       const periodId = p.id;
       const countriesUrl = `/trx/period/${periodId}/countries`;
@@ -233,8 +230,14 @@
           <td class="fw-semibold">${p.year ?? '-'}</td>
           <td>${statusBadge}</td>
           <td>
-            <button class="btn btn-sm btn-outline-primary" type="button" data-action="view-period" data-period-id="${periodId}">View</button>
-            <a class="btn btn-sm btn-outline-dark ms-1" href="${countriesUrl}">Countries</a>
+            <div class="period-actions">
+              <span class="period-setup-slot">
+                ${isOpen
+                  ? `<button class="btn btn-sm btn-outline-primary" type="button" data-action="view-period" data-period-id="${periodId}">Setup</button>`
+                  : '<span class="btn btn-sm btn-outline-primary period-setup-placeholder" aria-hidden="true">Setup</span>'}
+              </span>
+              <a class="btn btn-sm btn-outline-dark" href="${countriesUrl}">Participants</a>
+            </div>
           </td>
           <td class="text-muted small">${fmtDateTime(p.created_date || p.created_at)}</td>
           <td class="text-muted small">${isOpen ? '-' : fmtDateTime(p.closed_date || p.modified_date)}</td>
@@ -328,7 +331,7 @@
   }
 
   async function openCreateDialog() {
-    if (document.getElementById('btnCreate').disabled) return;
+    if (document.getElementById('btnCreate').classList.contains('d-none')) return;
 
     setDialogError('');
     setDialogMode('create');
@@ -368,7 +371,7 @@
     document.getElementById('viewPeriodYear').textContent = period.year ?? '-';
     document.getElementById('viewPeriodStatus').innerHTML = open
       ? '<span class="od-badge od-badge-open">Open</span>'
-      : '<span class="od-badge od-badge-close">Close</span>';
+      : '<span class="od-badge od-badge-close">Completed</span>';
     document.getElementById('viewPeriodCreated').textContent = fmtDateTime(period.created_date || period.created_at);
     document.getElementById('viewPeriodClosed').textContent = open
       ? '-'
@@ -380,7 +383,7 @@
 
     const closeBtn = document.getElementById('btnDialogSubmitClose');
     closeBtn.disabled = !open;
-    closeBtn.textContent = open ? 'Close Period' : 'Period Already Closed';
+    closeBtn.textContent = open ? 'Close Period' : 'Period Already Completed';
 
     periodDialog.show();
 
@@ -500,4 +503,3 @@
   });
 </script>
 @endpush
-

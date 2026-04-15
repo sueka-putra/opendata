@@ -22,10 +22,11 @@
               <th>Participant</th>
               <th style="width: 180px;">Status</th>
               <th style="width: 240px;">Last Modified</th>
+              <th style="width: 120px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="tbCountries">
-            <tr><td colspan="4" class="text-muted">Loading...</td></tr>
+            <tr><td colspan="5" class="text-muted">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -47,9 +48,9 @@
 
   function statusBadge(submitted) {
     if (submitted === true || submitted === 1 || submitted === '1') {
-      return '<span class="od-badge od-badge-open">Submitted</span>';
+      return '<span class="od-badge od-badge-submission-submitted">Submitted</span>';
     }
-    return '<span class="od-badge od-badge-close">Not Submitted</span>';
+    return '<span class="od-badge od-badge-submission-progress">In-progress</span>';
   }
 
   function renderPeriodMeta(period) {
@@ -61,24 +62,29 @@
 
     const state = (period.active === true || period.active === 1 || period.active === '1')
       ? 'Open'
-      : 'Closed';
+      : 'Completed';
     meta.textContent = `Period ${period.year ?? '-'} | ${state} | ${period.description || '-'}`;
   }
 
   function renderCountries(countries) {
     const tbody = document.getElementById('tbCountries');
     if (!Array.isArray(countries) || countries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No participants found for this period.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No participants found for this period.</td></tr>';
       return;
     }
 
     const sorted = [...countries].sort((a, b) => String(a.country_name || '').localeCompare(String(b.country_name || '')));
+    const isOpen = window.__periodIsOpen === true;
+
     tbody.innerHTML = sorted.map((row, idx) => `
       <tr>
         <td>${idx + 1}</td>
         <td class="fw-semibold">${row.country_name || row.country_code || '-'}</td>
         <td>${statusBadge(row.is_submitted)}</td>
         <td class="text-muted small">${fmtDateTime(row.modified_date)}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-dark" href="/trx/form?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(row.country_code)}">${isOpen ? 'Open' : 'View'}</a>
+        </td>
       </tr>
     `).join('');
   }
@@ -90,11 +96,12 @@
     try {
       const response = await odFetch(`/api/trx/countries/${periodId}`);
       const payload = response.data || {};
+      window.__periodIsOpen = payload.period && (payload.period.active === true || payload.period.active === 1 || payload.period.active === '1');
       renderPeriodMeta(payload.period || null);
       renderCountries(payload.countries || []);
     } catch (err) {
       document.getElementById('periodMeta').textContent = 'Failed to load period data.';
-      tbody.innerHTML = `<tr><td colspan="4" class="text-danger">${err.message || 'Failed to load participants.'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load participants.'}</td></tr>`;
     }
   }
 

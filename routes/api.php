@@ -51,6 +51,7 @@ Route::middleware(['web', 'auth'])->group(function () {
 
         Route::get('/form', [FormApiController::class, 'show']);
         Route::post('/form', [FormApiController::class, 'update']);
+        Route::post('/form/submit', [FormApiController::class, 'submit']);
         Route::get('/dashboard-assessments', [DashboardAssessmentApiController::class, 'index']);
     });
 });

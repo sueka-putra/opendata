@@ -86,9 +86,9 @@ class ScoreService
     public static function recomputeAndPersist(AssessmentCountry $assessmentCountry): array
     {
         $rows = DB::table('od_trx_assessment_country_rows as cr')
-            ->join('od_trx_assessment_period_rows as pr', 'cr.assessment_period_row_id', '=', 'pr.id')
+            ->join('od_mst_configuration_rows as cfg', 'cr.row_id', '=', 'cfg.id')
             ->select([
-                'pr.section_id',
+                'cfg.section_id',
                 'cr.series',
                 'cr.machine_readability',
                 'cr.proprietary',

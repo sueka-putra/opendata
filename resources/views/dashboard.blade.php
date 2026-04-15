@@ -5,7 +5,7 @@
   <div class="period-theme-shell">
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
       <div>
-        <h1 class="h5 period-title mb-1">List of Assessments by Country</h1>
+        <h1 class="h5 period-title mb-1">Assessment Histories</h1>
       </div>
       <div class="d-flex align-items-center gap-2">
         @if(auth()->user()?->isAdmin())
@@ -25,7 +25,7 @@
               <th style="width:160px;">Country</th>
               <th style="width:130px;">Status</th>
               <th style="width:130px;">Period</th>
-              <th style="width:110px;"></th>
+              <th style="width:110px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="assessmentRows">
@@ -43,6 +43,22 @@
 const rowContainer = document.getElementById('assessmentRows');
 const countryFilter = document.getElementById('countryFilter');
 
+function submissionBadge(submitted) {
+  if (submitted === true || submitted === 1 || submitted === '1') {
+    return '<span class="od-badge od-badge-submission-submitted">Submitted</span>';
+  }
+  return '<span class="od-badge od-badge-submission-progress">In-progress</span>';
+}
+
+function isOpenPeriod(row) {
+  if (row.active === true || row.active === 1 || row.active === '1') {
+    return true;
+  }
+
+  const status = String(row.status || '').toUpperCase();
+  return status === 'OPEN' || status === 'ACTIVE';
+}
+
 function renderRows(rows) {
   if (!rows.length) {
     rowContainer.innerHTML = '<tr><td colspan="6" class="text-muted">No assessment data found.</td></tr>';
@@ -50,13 +66,12 @@ function renderRows(rows) {
   }
 
   rowContainer.innerHTML = rows.map((r) => {
-    const statusBadge = r.is_submitted
-      ? '<span class="badge text-bg-success">Submitted</span>'
-      : '<span class="badge text-bg-warning">Draft</span>';
-    const periodBadge = r.active
-      ? '<span class="badge text-bg-primary">Active</span>'
-      : '<span class="badge text-bg-secondary">Closed</span>';
+    const statusBadge = submissionBadge(r.is_submitted);
+    const periodBadge = isOpenPeriod(r)
+      ? '<span class="od-badge od-badge-open">Open</span>'
+      : '<span class="od-badge od-badge-close">Completed</span>';
     const formUrl = `/trx/form?periodid=${encodeURIComponent(r.period_id)}&country_code=${encodeURIComponent(r.country_code)}`;
+    var stext = (r.active) ? 'Open' : 'View';
 
     return `
       <tr>
@@ -65,7 +80,7 @@ function renderRows(rows) {
         <td>${r.country_name || r.country_code}</td>
         <td>${statusBadge}</td>
         <td>${periodBadge}</td>
-        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="${formUrl}">Open</a></td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="${formUrl}" style="width:70px;" >${stext}</a></td>
       </tr>
     `;
   }).join('');

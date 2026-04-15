@@ -29,23 +29,36 @@ class FormApiController extends Controller
             return $this->fail('Assessment not found', 404);
         }
 
-        $detail = DB::table('od_trx_assessment_country_rows as cr')
-            ->join('od_trx_assessment_period_rows as pr', 'cr.assessment_period_row_id', '=', 'pr.id')
-            ->join('od_mst_sections as s', 'pr.section_id', '=', 's.id')
-            ->join('od_mst_categories as c', 'pr.category_id', '=', 'c.id')
-            ->join('od_mst_indicators as i', 'pr.indicator_id', '=', 'i.id')
-            ->join('od_mst_aggregations as a', 'pr.sub_indicator_id', '=', 'a.id')
+        $schema = DB::getSchemaBuilder();
+        $sectionCol = $schema->hasColumn('od_mst_sections', 'description') ? 'description' : 'title';
+        $categoryCol = $schema->hasColumn('od_mst_categories', 'description') ? 'description' : 'title';
+        $indicatorCol = $schema->hasColumn('od_mst_indicators', 'description') ? 'description' : 'title';
+        $aggregationCol = $schema->hasColumn('od_mst_aggregations', 'description') ? 'description' : 'title';
+
+        $detail = DB::table('od_trx_assessment_periods as p')
+            ->join('od_trx_assessment_countries as ac', 'ac.period_id', '=', 'p.id')
+            ->join('od_trx_assessment_country_rows as cr', 'cr.assessment_country_id', '=', 'ac.id')
+            ->join('od_mst_configuration_rows as cfg', function ($join) {
+                $join->on('cfg.config_id', '=', 'p.config_id');
+                $join->on('cfg.id', '=', 'cr.row_id');
+            })
+            ->leftJoin('od_mst_sections as s', 's.id', '=', 'cfg.section_id')
+            ->leftJoin('od_mst_categories as c', 'c.id', '=', 'cfg.category_id')
+            ->leftJoin('od_mst_indicators as i', 'i.id', '=', 'cfg.indicator_id')
+            ->leftJoin('od_mst_aggregations as a', 'a.id', '=', 'cfg.sub_indicator_id')
             ->select([
-                'cr.id as country_row_id',
-                'cr.assessment_period_row_id',
-                'pr.section_id',
-                'pr.category_id',
-                'pr.indicator_id',
-                'pr.sub_indicator_id',
-                's.title as section_title',
-                'c.title as category_title',
-                'i.title as indicator_title',
-                'a.title as aggregation_title',
+                'cr.id',
+                'p.year',
+                'ac.country_code',
+                'cr.row_id',
+                'cfg.section_id',
+                'cfg.category_id',
+                'cfg.indicator_id',
+                'cfg.sub_indicator_id',
+                DB::raw("s.{$sectionCol} as section"),
+                DB::raw("c.{$categoryCol} as category"),
+                DB::raw("i.{$indicatorCol} as indicator"),
+                DB::raw("COALESCE(a.{$aggregationCol}, '') as aggregation"),
                 'cr.series',
                 'cr.machine_readability',
                 'cr.proprietary',
@@ -55,11 +68,10 @@ class FormApiController extends Controller
                 'cr.urls',
                 'cr.remarks',
             ])
+            ->where('p.id', $periodId)
+            ->where('ac.country_code', $countryCode)
             ->where('cr.assessment_country_id', $ac->id)
-            ->orderBy('pr.section_id')
-            ->orderBy('pr.category_id')
-            ->orderBy('pr.indicator_id')
-            ->orderBy('pr.sub_indicator_id')
+            ->orderBy('cfg.seq_no')
             ->get()
             ->map(function ($r) {
                 $cov = ScoreService::computeRowCoverage((string) $r->series);
@@ -84,6 +96,11 @@ class FormApiController extends Controller
             'period' => ['id' => $period->id, 'year' => $period->year, 'active' => (bool) $period->active, 'description' => $period->description],
             'assessment_country' => ['id' => $ac->id, 'country_code' => $ac->country_code, 'is_submitted' => (bool) $ac->is_submitted],
             'detail' => $detail,
+            'detail_meta' => [
+                'total_rows' => $detail->count(),
+                'sorted_by' => 'seq_no',
+                'sort_order' => 'asc',
+            ],
             'summary' => $summary,
         ]);
     }
@@ -94,7 +111,7 @@ class FormApiController extends Controller
             'periodid' => 'required|integer',
             'countryid' => 'required|integer',
             'rows' => 'required|array',
-            'rows.*.assessment_period_row_id' => 'required|integer',
+            'rows.*.row_id' => 'required|integer',
             'rows.*.series' => 'nullable|string|max:300',
             'rows.*.machine_readability' => 'nullable|numeric|in:0,1',
             'rows.*.proprietary' => 'nullable|numeric|in:0,1',
@@ -116,14 +133,14 @@ class FormApiController extends Controller
 
         $period = AssessmentPeriod::findOrFail($payload['periodid']);
         if (!$period->active) {
-            return $this->fail('Assessment period is closed', 409);
+            return $this->fail('Assessment period is completed', 409);
         }
 
         DB::transaction(function () use ($payload, $ac) {
             foreach ($payload['rows'] as $r) {
                 DB::table('od_trx_assessment_country_rows')
                     ->where('assessment_country_id', $ac->id)
-                    ->where('assessment_period_row_id', $r['assessment_period_row_id'])
+                    ->where('row_id', $r['row_id'])
                     ->update([
                         'series' => $r['series'] ?? '',
                         'machine_readability' => $r['machine_readability'] ?? 0,
@@ -146,5 +163,46 @@ class FormApiController extends Controller
         AuditLogger::log($request, 'update data (save)', $ac->id);
 
         return $this->ok(['summary' => $summaries]);
+    }
+
+    public function submit(Request $request)
+    {
+        $payload = $request->validate([
+            'periodid' => 'required|integer',
+            'countryid' => 'required|integer',
+        ]);
+
+        $ac = AssessmentCountry::where('id', $payload['countryid'])
+            ->where('period_id', $payload['periodid'])
+            ->firstOrFail();
+
+        if (!$request->user()->isAdmin() && $request->user()->country_code !== $ac->country_code) {
+            return $this->fail('Assessment not found', 404);
+        }
+
+        $period = AssessmentPeriod::findOrFail($payload['periodid']);
+        if (!$period->active) {
+            return $this->fail('Assessment period is completed', 409);
+        }
+
+        if (!$ac->is_submitted) {
+            $ac->update([
+                'is_submitted' => 1,
+                'modified_by' => (int) auth()->id(),
+            ]);
+        }
+
+        $summaries = ScoreService::recomputeAndPersist($ac);
+
+        AuditLogger::log($request, 'submit assessment', $ac->id);
+
+        return $this->ok([
+            'assessment_country' => [
+                'id' => $ac->id,
+                'country_code' => $ac->country_code,
+                'is_submitted' => true,
+            ],
+            'summary' => $summaries,
+        ]);
     }
 }
