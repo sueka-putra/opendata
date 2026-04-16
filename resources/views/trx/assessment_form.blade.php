@@ -100,7 +100,7 @@
           <div class="modal-header">
             <div>
               <h5 class="modal-title mb-0">Row Navigator</h5>
-              <div class="period-dialog-subtitle">Rows follow active Section/Category/Unfinished filters.</div>
+              <div class="period-dialog-subtitle">Displayed rows are based on active Section/Category/Unfinished filters.</div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
@@ -186,6 +186,40 @@
     return Number.isNaN(num) ? fallback : num;
   }
 
+  function normalizeSeriesYears(raw) {
+    const original = String(raw ?? '').trim();
+    if (!original) return '';
+
+    const tokens = original.split(',').map((token) => token.trim()).filter(Boolean);
+    if (!tokens.length) return '';
+
+    const years = [];
+
+    for (const token of tokens) {
+      const rangeMatch = token.match(/^(\d{4})\s*-\s*(\d{4})$/);
+      if (rangeMatch) {
+        let start = Number(rangeMatch[1]);
+        let end = Number(rangeMatch[2]);
+        if (start > end) {
+          [start, end] = [end, start];
+        }
+        for (let year = start; year <= end; year += 1) {
+          years.push(String(year));
+        }
+        continue;
+      }
+
+      if (/^\d{4}$/.test(token)) {
+        years.push(token);
+        continue;
+      }
+
+      return original;
+    }
+
+    return years.join(',');
+  }
+
   function sectionLabel(row) {
     return row.section || row.section_title || '-';
   }
@@ -244,7 +278,7 @@
       if (!key || sectionMap.has(key)) return;
       sectionMap.set(key, sectionLabel(r));
     });
-    const sectionOpts = [...sectionMap.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+    const sectionOpts = [...sectionMap.entries()];
     sectionSelect.innerHTML = `<option value="">All Sections</option>${sectionOpts.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join('')}`;
 
     const allowedRows = pageState.filters.sectionId
@@ -256,7 +290,7 @@
       if (!key || categoryMap.has(key)) return;
       categoryMap.set(key, categoryLabel(r));
     });
-    const categoryOpts = [...categoryMap.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+    const categoryOpts = [...categoryMap.entries()];
     categorySelect.innerHTML = `<option value="">All Categories</option>${categoryOpts.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join('')}`;
 
     if (pageState.filters.sectionId && !sectionMap.has(String(pageState.filters.sectionId))) {
@@ -406,7 +440,7 @@
               <div class="assessment-dimension-item"><span>Section</span><strong>${esc(r.section || r.section_title || '-')}</strong></div>
               <div class="assessment-dimension-item"><span>Category</span><strong>${esc(r.category || r.category_title || '-')}</strong></div>
               <div class="assessment-dimension-item"><span>Indicator</span><strong>${esc(r.indicator || r.indicator_title || '-')}</strong></div>
-              <div class="assessment-dimension-item"><span>Disaggregation</span><strong>${esc(r.aggregation || r.aggregation_title || '-')}</strong></div>
+              <div class="assessment-dimension-item"><span>Dissagregation</span><strong>${esc(r.aggregation || r.aggregation_title || '-')}</strong></div>
             </div>
           </td>
           <td>
@@ -487,6 +521,17 @@
       if (pageState.filters.unfinishedOnly) {
         renderDetailRows();
       }
+    });
+    tbody.addEventListener('focusout', (event) => {
+      const target = event.target;
+      if (!target.classList.contains('assessment-input')) return;
+      if (target.dataset.field !== 'series') return;
+
+      const normalized = normalizeSeriesYears(target.value);
+      if (target.value !== normalized) {
+        target.value = normalized;
+      }
+      setRowField(target.dataset.rowId, target.dataset.field, target.value);
     });
   }
 

@@ -415,6 +415,7 @@
 
 .assessment-dimension {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -427,21 +428,19 @@
   background: #eef1f9;
   border-radius: 999px;
   padding: 2px 8px;
+  grid-column: 1 / -1;
 }
 
 .assessment-dimension-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid #e4e8f3;
-  border-radius: 8px;
-  background: #f9fafe;
-  padding: 8px 10px;
+  padding: 0;
 }
 
 .assessment-dimension-item span {
   display: inline-block;
-  flex: 0 0 98px;
+  flex: 0 0 110px;
   font-size: 0.72rem;
   color: #7a8094;
 }
