@@ -2,11 +2,14 @@
 
 :root {
   --od-muted: #6c757d;
-  --od-page-bg: #f4f5fb;
-  --od-header-bg: #eeeff5;
-  --od-header-border: #d8dbe7;
-  --od-header-text: #545a6e;
-  --od-primary-soft: #8b5cf6;
+  --od-page-bg: #eef3fb;
+  --od-header-bg: #ffffff;
+  --od-header-border: #dbe4f0;
+  --od-header-text: #34527a;
+  --od-primary: #3368db;
+  --od-primary-dark: #2455c5;
+  --od-sidebar-bg: #ffffff;
+  --od-sidebar-border: #d7e2f0;
 }
 
 .table-wide {
@@ -24,6 +27,140 @@
 body.od-app {
   background: var(--od-page-bg);
   color: #2f3342;
+  min-height: 100vh;
+}
+
+.od-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1040;
+  background: var(--od-header-bg);
+  border-bottom: 1px solid var(--od-header-border);
+}
+
+.od-topbar-inner {
+  min-height: 68px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.od-brand img {
+  height: 34px;
+  width: auto;
+}
+
+.od-sidebar-toggle {
+  border: 1px solid #c9d6e7;
+  background: #f8fbff;
+  color: #3a5d8a;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.od-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.od-sidebar {
+  background: var(--od-sidebar-bg);
+  border: 1px solid var(--od-sidebar-border);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 6px 18px rgba(32, 57, 99, 0.09);
+  overflow: hidden;
+}
+
+.od-user-card {
+  border-radius: 12px;
+  padding: 10px;
+  border: 1px solid #e1e9f5;
+  background: #f8fbff;
+}
+
+.od-user-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.od-user-text {
+  min-width: 0;
+}
+
+.od-role-chip {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #e5f6ea;
+  color: #22804a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.od-menu {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.od-menu-section {
+  margin: 8px 8px 2px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6d84a8;
+  font-weight: 700;
+}
+
+.od-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #446087;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.od-menu-link i {
+  width: 18px;
+  text-align: center;
+}
+
+.od-menu-link:hover {
+  background: #eff5ff;
+  color: #2856c6;
+}
+
+.od-menu-link.active {
+  background: linear-gradient(90deg, var(--od-primary), #4b80f0);
+  color: #fff;
+}
+
+.od-menu-form {
+  margin: 0;
+}
+
+.od-menu-link-btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.od-main {
+  min-width: 0;
 }
 
 .od-navbar {
@@ -93,7 +230,7 @@ body.od-app {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #93c5fd, #a78bfa);
+  background: linear-gradient(135deg, #5a86ea, #2b62d8);
   color: #fff;
   font-size: 0.85rem;
   font-weight: 700;
@@ -113,12 +250,18 @@ body.od-app {
   color: #2f3342;
   font-weight: 700;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .od-user-email {
   margin: 0;
   color: #767d93;
   font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .od-dropdown-action {
@@ -151,4 +294,46 @@ body.od-app {
 
 .od-btn-logout:hover {
   filter: brightness(0.97);
+}
+
+body.od-sidebar-collapsed .od-shell {
+  grid-template-columns: 82px minmax(0, 1fr);
+}
+
+body.od-sidebar-collapsed .od-sidebar .od-user-text,
+body.od-sidebar-collapsed .od-sidebar .od-role-chip,
+body.od-sidebar-collapsed .od-sidebar .od-menu-section,
+body.od-sidebar-collapsed .od-sidebar .od-menu-link span {
+  display: none;
+}
+
+body.od-sidebar-collapsed .od-sidebar .od-user-card-head,
+body.od-sidebar-collapsed .od-sidebar .od-menu-link {
+  justify-content: center;
+}
+
+@media (max-width: 992px) {
+  .od-shell {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .od-sidebar {
+    max-height: 0;
+    border-width: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+  }
+
+  body.od-sidebar-open .od-sidebar {
+    max-height: 80vh;
+    opacity: 1;
+    pointer-events: auto;
+    border-width: 1px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
 }

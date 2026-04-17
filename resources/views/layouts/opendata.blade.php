@@ -13,69 +13,106 @@
     <link rel="icon" type="image/x-icon" href="/img/opendata3.png">
 </head>
 <body class="od-app">
-<nav class="navbar navbar-expand-lg navbar-light od-navbar">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="{{ route('dashboard') }}">Open Data Portal</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="nav">
-            <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link" href="{{ route('trx.country_list') }}">Assessments</a></li>
-                @if(auth()->user()?->isAdmin())
-                    <li class="nav-item"><a class="nav-link" href="{{ route('trx.periods') }}">Periods</a></li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Administration</a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ route('adm.sections') }}">Sections</a></li>
-                            <li><a class="dropdown-item" href="{{ route('adm.categories') }}">Categories</a></li>
-                            <li><a class="dropdown-item" href="{{ route('adm.indicators') }}">Indicators</a></li>
-                            <li><a class="dropdown-item" href="{{ route('adm.sub_indicators') }}">Sub-indicators</a></li>
-                            <li><a class="dropdown-item" href="{{ route('adm.users') }}">Users</a></li>
-                        </ul>
-                    </li>
-                @endif
-            </ul>
+@php
+    $isAdmin = auth()->user()?->isAdmin();
+    $initial = strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1));
+@endphp
 
-            <div class="d-flex align-items-center gap-2">
-                <div class="d-none d-lg-flex align-items-center gap-1">
-                    <button class="od-icon-btn" type="button" aria-label="Translate">&#127760;</button>
-                    <button class="od-icon-btn" type="button" aria-label="Theme">&#9728;</button>
-                    <button class="od-icon-btn" type="button" aria-label="Notification">&#128276;</button>
-                </div>
-                <div class="dropdown">
-                    <button class="od-profile-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="od-avatar">
-                            {{ strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1)) }}
-                        </span>
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-end">
-                        <div class="od-user-head d-flex align-items-center gap-2">
-                            <span class="od-avatar">
-                                {{ strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1)) }}
-                            </span>
-                            <div>
-                                <p class="od-user-name">{{ auth()->user()?->name ?? '-' }}</p>
-                                <p class="od-user-email">{{ auth()->user()?->email ?? '-' }}</p>
-                            </div>
+<header class="od-topbar">
+    <div class="od-topbar-inner">
+        <div class="d-flex align-items-center gap-2">
+            <button class="od-sidebar-toggle" type="button" data-od-sidebar-toggle aria-label="Toggle menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <a class="od-brand" href="{{ route('dashboard') }}">
+                <img src="{{ asset('img/ASEAN_Logo_small.png') }}" alt="ASEANstats">
+            </a>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <div class="dropdown">
+                <button class="od-profile-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="od-avatar">{{ $initial }}</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <div class="od-user-head d-flex align-items-center gap-2">
+                        <span class="od-avatar">{{ $initial }}</span>
+                        <div>
+                            <p class="od-user-name">{{ auth()->user()?->name ?? '-' }}</p>
+                            <p class="od-user-email">{{ auth()->user()?->email ?? '-' }}</p>
                         </div>
-                        <a class="dropdown-item od-dropdown-action" href="{{ route('profile.edit') }}">My Profile</a>
-                        <div class="od-logout-wrap">
-                            <form method="POST" action="{{ route('logout') }}">
-                                @csrf
-                                <button class="od-btn-logout" type="submit">Logout</button>
-                            </form>
-                        </div>
+                    </div>
+                    <a class="dropdown-item od-dropdown-action" href="{{ route('profile.edit') }}">My Profile</a>
+                    <div class="od-logout-wrap">
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button class="od-btn-logout" type="submit">Logout</button>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</nav>
+</header>
 
-<main class="container-fluid py-3">
-    @yield('content')
-</main>
+<div class="od-shell">
+    <aside class="od-sidebar">
+        <div class="od-user-card">
+            <div class="od-user-card-head">
+                <span class="od-avatar">{{ $initial }}</span>
+                <div class="od-user-text">
+                    <p class="od-user-name">{{ auth()->user()?->name ?? '-' }}</p>
+                    <p class="od-user-email">{{ auth()->user()?->email ?? '-' }}</p>
+                </div>
+            </div>
+            <span class="od-role-chip">{{ $isAdmin ? 'Administrator' : 'User' }}</span>
+        </div>
+
+        <nav class="od-menu">
+            <p class="od-menu-section">Assessment</p>
+            <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
+                <i class="fa-solid fa-chart-pie"></i><span>Histories</span>
+            </a>
+            <a class="od-menu-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}" href="{{ route('profile.edit') }}">
+                <i class="fa-solid fa-user"></i><span>Profile</span>
+            </a>
+            <form method="POST" action="{{ route('logout') }}" class="od-menu-form">
+                @csrf
+                <button type="submit" class="od-menu-link od-menu-link-btn">
+                    <i class="fa-solid fa-right-from-bracket"></i><span>Sign-out</span>
+                </button>
+            </form>
+
+            <p class="od-menu-section mt-2">Admin</p>
+            @if($isAdmin)
+            <a class="od-menu-link {{ request()->routeIs('trx.periods') ? 'active' : '' }}" href="{{ route('trx.periods') }}">
+                <i class="fa-solid fa-calendar-days"></i><span>Periods</span>
+            </a>
+            <hr/>
+            <a class="od-menu-link {{ request()->routeIs('adm.sections') ? 'active' : '' }}" href="{{ route('adm.sections') }}">
+                <i class="fa-solid fa-layer-group"></i><span>Sections</span>
+            </a>
+            <a class="od-menu-link {{ request()->routeIs('adm.categories') ? 'active' : '' }}" href="{{ route('adm.categories') }}">
+                <i class="fa-solid fa-tags"></i><span>Categories</span>
+            </a>
+            <a class="od-menu-link {{ request()->routeIs('adm.indicators') ? 'active' : '' }}" href="{{ route('adm.indicators') }}">
+                <i class="fa-solid fa-chart-line"></i><span>Indicators</span>
+            </a>
+            <a class="od-menu-link {{ request()->routeIs('adm.sub_indicators') ? 'active' : '' }}" href="{{ route('adm.sub_indicators') }}">
+                <i class="fa-solid fa-list-check"></i><span>Sub-indicators</span>
+            </a>
+            <hr/>
+            <a class="od-menu-link {{ request()->routeIs('adm.users') ? 'active' : '' }}" href="{{ route('adm.users') }}">
+                <i class="fa-solid fa-users"></i><span>Users</span>
+            </a>
+            @endif
+        </nav>
+    </aside>
+
+    <main class="od-main">
+        @yield('content')
+    </main>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ asset('js/opendata.js') }}"></script>

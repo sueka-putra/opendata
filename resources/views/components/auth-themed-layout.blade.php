@@ -10,8 +10,8 @@
     <link rel="icon" type="image/x-icon" href="/img/opendata.png">
     <style>
         :root {
-            --bg-start: #6875de;
-            --bg-end: #6c44af;
+            --bg-start: #0f4fa8;
+            --bg-end: #2f80e7;
             --panel-right: #f2f2f2;
             --text-dark: #1f2430;
             --text-soft: #7c8290;
@@ -38,7 +38,7 @@
             box-shadow: 0 26px 45px rgba(31, 36, 48, 0.28);
         }
         .brand-panel {
-            background: linear-gradient(180deg, #6f7ce2, #6c4ab5);
+            background: linear-gradient(180deg, #1f6ed6, #0f4ca9);
             color: #fff;
             padding: 56px 52px;
             display: flex;
@@ -105,7 +105,7 @@
             align-items: center;
             justify-content: center;
             background: rgba(255, 255, 255, 0.95);
-            color: #6273d6;
+            color: #1f64cf;
             font-size: 15px;
             font-weight: 700;
             flex: 0 0 28px;
@@ -160,8 +160,8 @@
             outline: none;
         }
         input:focus {
-            border-color: #7984e5;
-            box-shadow: 0 0 0 3px rgba(121, 132, 229, 0.2);
+            border-color: #4a8ee8;
+            box-shadow: 0 0 0 3px rgba(74, 142, 232, 0.2);
         }
         .error {
             margin-top: 8px;
@@ -186,10 +186,10 @@
         .remember input {
             width: 16px;
             height: 16px;
-            accent-color: #6f74dc;
+            accent-color: #2f7be0;
         }
         .link {
-            color: #6371de;
+            color: #2f73d7;
             font-weight: 600;
             text-decoration: none;
             font-size: 20px;
@@ -198,7 +198,7 @@
             width: 100%;
             border: 0;
             border-radius: 8px;
-            background: linear-gradient(90deg, #6677dd, #6f48ac);
+            background: linear-gradient(90deg, #2e79df, #1f5bc9);
             color: #fff;
             font-size: 28px;
             font-weight: 700;
@@ -207,10 +207,10 @@
         }
         .secondary-btn {
             width: 100%;
-            border: 1px solid #7378d6;
+            border: 1px solid #2f79db;
             border-radius: 8px;
             background: transparent;
-            color: #4c54bf;
+            color: #2f67ca;
             font-size: 18px;
             font-weight: 600;
             padding: 12px 16px;

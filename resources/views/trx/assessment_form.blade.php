@@ -182,6 +182,16 @@
       unfinishedOnly: false,
     },
   };
+  const fieldTooltips = {
+    series: 'Coverage input. Use comma-separated years (for example: 2019,2020,2021) or NA for not applicable. Scoring: C1=1 if any year exists; C2=1 for at least 3 of last 5 years, 0.5 for 1-2 years, 0 for none; C3=1 for at least 6 of last 10 years, 0.5 for 3-5 years, 0 for 2 or fewer.',
+    machine_readability: 'O1 - Machine Readability. Score 1 if data is machine-readable (for example XLSX/CSV/JSON/XML/TXT), otherwise 0.',
+    proprietary: 'O2 - Non-Proprietary. Score 1 if data is available in non-proprietary formats (for example XLSX/CSV/XML/TXT/JSON), otherwise 0.',
+    download_options: 'O3 - Download Options. Score 1 if bulk download and API/user-selectable download are available; 0.5 if only one of those options exists; 0 if none.',
+    metadata: 'O4 - Metadata Availability. Score 1 if all required metadata fields are present; 0.5 if at least 5 fields are present; 0 if 4 or fewer.',
+    term_of_use: 'O5 - Terms of Use. Score 1 for open terms, 0.5 for semi-restrictive terms, 0 for restrictive/no terms.',
+    urls: 'Provide URL(s) for the assessed dataset(s), aligned with the selected indicator/disaggregation.',
+    remarks: 'Add supporting notes, clarifications, or context for the values entered in this row.',
+  };
 
   function esc(value) {
     return String(value ?? '')
@@ -197,6 +207,30 @@
     const num = Number(value);
     if (Number.isNaN(num)) return '-';
     return Number.isInteger(num) ? String(num) : num.toFixed(digits);
+  }
+
+  function helpIconText(text, label = 'Field help') {
+    const clean = String(text || '').trim();
+    if (!clean) return '';
+    return `
+      <span class="assessment-help-icon"
+        tabindex="0"
+        role="button"
+        aria-label="${esc(label)}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-custom-class="assessment-help-tooltip"
+        title="${esc(clean)}"
+      ><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+    `;
+  }
+
+  function initTooltips(scope = document) {
+    scope.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      if (el.dataset.odTooltipInit === '1') return;
+      new bootstrap.Tooltip(el);
+      el.dataset.odTooltipInit = '1';
+    });
   }
 
   function boolFlag(v) {
@@ -469,7 +503,7 @@
           </td>
           <td>
             <div class="assessment-field-wrap">
-              <label class="form-label form-label-sm mb-1">Series</label>
+              <label class="form-label form-label-sm mb-1">Series ${helpIconText(fieldTooltips.series, 'Series help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
                 data-row-id="${r.row_id}" data-field="series" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.series || '')}</textarea>
             </div>
@@ -486,23 +520,23 @@
           <td>
             <div class="assessment-openness-grid">
               <div class="assessment-openness-item">
-                <label class="form-label form-label-sm mb-1">Machine Readability</label>
+                <label class="form-label form-label-sm mb-1">Machine Readability ${helpIconText(fieldTooltips.machine_readability, 'Machine Readability help')}</label>
                 ${opennessSelect('machine_readability', r.machine_readability, r.row_id, [0, 1], disabled)}
               </div>
               <div class="assessment-openness-item">
-                <label class="form-label form-label-sm mb-1">Proprietary</label>
+                <label class="form-label form-label-sm mb-1">Proprietary ${helpIconText(fieldTooltips.proprietary, 'Proprietary help')}</label>
                 ${opennessSelect('proprietary', r.proprietary, r.row_id, [0, 1], disabled)}
               </div>
               <div class="assessment-openness-item">
-                <label class="form-label form-label-sm mb-1">Download Options</label>
+                <label class="form-label form-label-sm mb-1">Download Options ${helpIconText(fieldTooltips.download_options, 'Download Options help')}</label>
                 ${opennessSelect('download_options', r.download_options, r.row_id, [0, 0.5, 1], disabled)}
               </div>
               <div class="assessment-openness-item">
-                <label class="form-label form-label-sm mb-1">Metadata</label>
+                <label class="form-label form-label-sm mb-1">Metadata ${helpIconText(fieldTooltips.metadata, 'Metadata help')}</label>
                 ${opennessSelect('metadata', r.metadata, r.row_id, [0, 0.5, 1], disabled)}
               </div>
               <div class="assessment-openness-item">
-                <label class="form-label form-label-sm mb-1">Term of Use</label>
+                <label class="form-label form-label-sm mb-1">Term of Use ${helpIconText(fieldTooltips.term_of_use, 'Term of Use help')}</label>
                 ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1], disabled)}
               </div>
             </div>
@@ -510,12 +544,12 @@
           </td>
           <td>
             <div class="assessment-field-wrap mb-2">
-              <label class="form-label form-label-sm mb-1">Relevant URL</label>
+              <label class="form-label form-label-sm mb-1">Relevant URL ${helpIconText(fieldTooltips.urls, 'Relevant URL help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
                 data-row-id="${r.row_id}" data-field="urls" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.urls || '')}</textarea>
             </div>
             <div class="assessment-field-wrap">
-              <label class="form-label form-label-sm mb-1">Remark</label>
+              <label class="form-label form-label-sm mb-1">Remark ${helpIconText(fieldTooltips.remarks, 'Remark help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
                 data-row-id="${r.row_id}" data-field="remarks" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.remarks || '')}</textarea>
             </div>
@@ -523,6 +557,8 @@
         </tr>
       `;
     }).join('');
+
+    initTooltips(tbody);
   }
 
   function setRowField(rowId, field, value) {
@@ -691,9 +727,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
-    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-      new bootstrap.Tooltip(el);
-    });
+    initTooltips(document);
 
     document.getElementById('entrySectionFilter').addEventListener('change', (event) => {
       pageState.filters.sectionId = String(event.target.value || '');

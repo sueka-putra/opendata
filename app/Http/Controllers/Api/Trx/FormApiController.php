@@ -73,8 +73,8 @@ class FormApiController extends Controller
             ->where('cr.assessment_country_id', $ac->id)
             ->orderBy('cfg.seq_no')
             ->get()
-            ->map(function ($r) {
-                $cov = ScoreService::computeRowCoverage((string) $r->series);
+            ->map(function ($r) use ($period) {
+                $cov = ScoreService::computeRowCoverage((string) $r->series, (int) $period->year);
                 $o = (float) $r->machine_readability + (float) $r->proprietary + (float) $r->download_options + (float) $r->metadata + (float) $r->term_of_use;
                 return array_merge((array) $r, [
                     'count_all' => $cov['count_all'],

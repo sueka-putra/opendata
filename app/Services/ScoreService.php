@@ -23,17 +23,35 @@ class ScoreService
         $parts = array_filter(array_map('trim', explode(',', $s)));
         $years = [];
         foreach ($parts as $p) {
-            if (!preg_match('/^\d{4}$/', $p)) {
+            if (preg_match('/^\d{4}$/', $p)) {
+                $years[] = (int) $p;
                 continue;
             }
-            $years[] = (int) $p;
+
+            // Handle year ranges, e.g. 2016-2020
+            if (preg_match('/^(\d{4})\s*-\s*(\d{4})$/', $p, $m)) {
+                $start = (int) $m[1];
+                $end = (int) $m[2];
+                if ($start > $end) {
+                    [$start, $end] = [$end, $start];
+                }
+                foreach (range($start, $end) as $year) {
+                    $years[] = $year;
+                }
+                continue;
+            }
+
+            // Handle fiscal-like tokens, e.g. 2012/2013, count as one year.
+            if (preg_match('/^(\d{4})\s*\/\s*(\d{4})$/', $p, $m)) {
+                $years[] = max((int) $m[1], (int) $m[2]);
+            }
         }
         $years = array_values(array_unique($years));
         sort($years);
         return $years;
     }
 
-    public static function computeRowCoverage(string $series): array
+    public static function computeRowCoverage(string $series, ?int $referenceYear = null): array
     {
         $raw = trim((string) $series);
         if (strtoupper($raw) === 'NA') {
@@ -50,14 +68,14 @@ class ScoreService
         }
         $years = self::parseSeries($raw);
         $countAll = count($years);
-        $currentYear = (int) now('UTC')->format('Y');
+        $currentYear = (int) ($referenceYear ?: now('UTC')->format('Y'));
         $last5 = range($currentYear - 4, $currentYear);
         $last10 = range($currentYear - 9, $currentYear);
         $count5 = count(array_intersect($years, $last5));
         $count10 = count(array_intersect($years, $last10));
         $c1 = $countAll > 0 ? 1 : 0;
-        $c2 = $count5 > 2 ? 1 : 0;
-        $c3 = $count10 > 5 ? 1 : 0;
+        $c2 = $count5 > 2 ? 1 : ($count5 > 0 ? 0.5 : 0);
+        $c3 = $count10 > 5 ? 1 : ($count10 > 2 ? 0.5 : 0);
         return [
             'count_all' => $countAll,
             'count_5' => $count5,
@@ -85,6 +103,9 @@ class ScoreService
      */
     public static function recomputeAndPersist(AssessmentCountry $assessmentCountry): array
     {
+        $assessmentCountry->loadMissing('period');
+        $referenceYear = (int) ($assessmentCountry->period?->year ?: now('UTC')->format('Y'));
+
         $rows = DB::table('od_trx_assessment_country_rows as cr')
             ->join('od_mst_configuration_rows as cfg', 'cr.row_id', '=', 'cfg.id')
             ->select([
@@ -119,7 +140,7 @@ class ScoreService
                 $opennessActual = 0;
 
                 foreach ($sectionRows as $r) {
-                    $cov = self::computeRowCoverage((string) $r->series);
+                    $cov = self::computeRowCoverage((string) $r->series, $referenceYear);
                     if (!$cov['is_na']) {
                         $coverageActual += (float) $cov['c'];
                         $opennessActual += (float) $r->machine_readability
@@ -135,7 +156,7 @@ class ScoreService
 
                 $coverageSub = $coverageRatio * 100;
                 $opennessSub = $opennessRatio * 100;
-                $overall = ($coverageRatio * 50) + ($opennessRatio * 50);
+                $overall = ($coverageSub * 0.5) + ($opennessSub * 0.5);
 
                 $rec = AssessmentSummary::create([
                     'assessment_country_id' => $assessmentCountry->id,
@@ -146,7 +167,7 @@ class ScoreService
                     'opennes_max_score' => $opennessMax,
                     'opennes_actual_score' => $opennessActual,
                     'opennes_sub_score' => round($opennessSub, 2),
-                    'overall_score' => round($overall * 100, 2), // stored as percentage-like per spec overall? keep 0-100
+                    'overall_score' => round($overall, 2),
                 ]);
 
                 $summaries[] = $rec;

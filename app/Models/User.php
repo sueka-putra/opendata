@@ -23,6 +23,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'person_name',
         'email',
         'password',
         'country_code',
@@ -62,5 +63,19 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->country_code === config('opendata.admin_country_code');
+    }
+
+    public function getNameAttribute($value): ?string
+    {
+        if (!empty($value)) {
+            return $value;
+        }
+
+        return $this->attributes['person_name'] ?? null;
+    }
+
+    public function setNameAttribute($value): void
+    {
+        $this->attributes['person_name'] = $value;
     }
 }
