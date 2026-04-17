@@ -325,6 +325,50 @@
   white-space: nowrap;
 }
 
+.assessment-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assessment-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid white;
+  background: white;
+  color: rgb(13, 110, 253);
+  font-size: 0.74rem;
+  line-height: 1;
+  cursor: help;
+}
+
+.assessment-help-icon i {
+  line-height: 1;
+  font-size: 15px;
+}
+
+.assessment-help-icon:hover {
+  background: #3fa2fb;
+  border-color: #3195ef;
+}
+
+.assessment-help-icon:focus-visible {
+  outline: 2px solid #9cb6ff;
+  outline-offset: 1px;
+}
+
+.assessment-help-tooltip {
+  --bs-tooltip-max-width: 360px;
+}
+
+.assessment-help-tooltip .tooltip-inner {
+  text-align: left;
+}
+
 .assessment-filter-item .form-select {
   min-width: 220px;
 }

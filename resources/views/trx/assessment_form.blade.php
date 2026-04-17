@@ -34,11 +34,35 @@
           <div class="period-table-toolbar assessment-entry-toolbar">
             <div class="assessment-entry-filters">
               <div class="assessment-filter-item">
-                <label class="form-label mb-0 small text-muted" for="entrySectionFilter">Section</label>
+                <label class="form-label mb-0 small text-muted assessment-filter-label" for="entrySectionFilter">
+                  Section
+                  <span
+                    class="assessment-help-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="Section help"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    data-bs-custom-class="assessment-help-tooltip"
+                    title="The highest grouping level in the assessment. By default, the filter is set to All Sections. Selecting a specific Section will refresh the assessment rows to show only records under that Section, and the next filter will be reset to All Categories."
+                  ><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                </label>
                 <select class="form-select form-select-sm" id="entrySectionFilter"></select>
               </div>
               <div class="assessment-filter-item">
-                <label class="form-label mb-0 small text-muted" for="entryCategoryFilter">Category</label>
+                <label class="form-label mb-0 small text-muted assessment-filter-label" for="entryCategoryFilter">
+                  Category
+                  <span
+                    class="assessment-help-icon"
+                    tabindex="0"
+                    role="button"
+                    aria-label="Category help"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    data-bs-custom-class="assessment-help-tooltip"
+                    title="A sub-group under the selected Section. By default, the filter is set to All Categories. Selecting a specific Category will refresh the assessment rows to show only records under that Category within the chosen Section."
+                  ><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                </label>
                 <select class="form-select form-select-sm" id="entryCategoryFilter"></select>
               </div>
             </div>
@@ -667,6 +691,9 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      new bootstrap.Tooltip(el);
+    });
 
     document.getElementById('entrySectionFilter').addEventListener('change', (event) => {
       pageState.filters.sectionId = String(event.target.value || '');
