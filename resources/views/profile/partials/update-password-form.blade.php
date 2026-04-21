@@ -1,29 +1,35 @@
 <section>
     <header class="mb-3">
-        <h2 class="h6 mb-1 profile-section-title">{{ __('Update Password') }}</h2>
-        <p class="mb-0 profile-section-subtitle">{{ __('Ensure your account is using a long, random password to stay secure.') }}</p>
+        <h2 class="h6 mb-1 profile-section-title">Change Password</h2>
+        <p class="mb-0 profile-section-subtitle">Update the user password.</p>
     </header>
 
-    <form method="post" action="{{ route('password.update') }}">
+    <form method="post" action="{{ route('profile.password') }}">
         @csrf
-        @method('put')
+        @method('patch')
+
+        @if($targetUserId)
+            <input type="hidden" name="user_id" value="{{ $targetUserId }}">
+        @endif
+
+        @if(!$isAdmin || !$isManagingOtherUser)
+            <div class="mb-3">
+                <label class="form-label profile-form-label" for="update_password_current_password">Current Password</label>
+                <input
+                    id="update_password_current_password"
+                    name="current_password"
+                    type="password"
+                    class="form-control @if($errors->updatePassword->has('current_password')) is-invalid @endif"
+                    autocomplete="current-password"
+                >
+                @if($errors->updatePassword->has('current_password'))
+                    <div class="invalid-feedback">{{ $errors->updatePassword->first('current_password') }}</div>
+                @endif
+            </div>
+        @endif
 
         <div class="mb-3">
-            <label class="form-label profile-form-label" for="update_password_current_password">{{ __('Current Password') }}</label>
-            <input
-                id="update_password_current_password"
-                name="current_password"
-                type="password"
-                class="form-control @if($errors->updatePassword->has('current_password')) is-invalid @endif"
-                autocomplete="current-password"
-            >
-            @if($errors->updatePassword->has('current_password'))
-                <div class="invalid-feedback">{{ $errors->updatePassword->first('current_password') }}</div>
-            @endif
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label profile-form-label" for="update_password_password">{{ __('New Password') }}</label>
+            <label class="form-label profile-form-label" for="update_password_password">New Password</label>
             <input
                 id="update_password_password"
                 name="password"
@@ -37,7 +43,7 @@
         </div>
 
         <div class="mb-3">
-            <label class="form-label profile-form-label" for="update_password_password_confirmation">{{ __('Confirm Password') }}</label>
+            <label class="form-label profile-form-label" for="update_password_password_confirmation">Confirm Password</label>
             <input
                 id="update_password_password_confirmation"
                 name="password_confirmation"
@@ -51,9 +57,9 @@
         </div>
 
         <div class="d-flex align-items-center gap-2">
-            <button type="submit" class="btn od-btn-primary">{{ __('Save') }}</button>
+            <button type="submit" class="btn od-btn-primary">Save</button>
             @if (session('status') === 'password-updated')
-                <span class="small text-muted">{{ __('Saved.') }}</span>
+                <span class="small text-muted">Saved.</span>
             @endif
         </div>
     </form>

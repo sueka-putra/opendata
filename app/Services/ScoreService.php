@@ -74,7 +74,7 @@ class ScoreService
         $count5 = count(array_intersect($years, $last5));
         $count10 = count(array_intersect($years, $last10));
         $c1 = $countAll > 0 ? 1 : 0;
-        $c2 = $count5 > 2 ? 1 : ($count5 > 0 ? 0.5 : 0);
+        $c2 = $count5 > 2 ? 1 : ($count5 > 1 ? 0.5 : 0);
         $c3 = $count10 > 5 ? 1 : ($count10 > 2 ? 0.5 : 0);
         return [
             'count_all' => $countAll,
@@ -123,7 +123,7 @@ class ScoreService
         $bySection = collect($rows)->groupBy('section_id');
         $summaries = [];
 
-        DB::transaction(function () use ($assessmentCountry, $bySection, &$summaries) {
+        DB::transaction(function () use ($assessmentCountry, $bySection, &$summaries, $referenceYear) {
             // Clear existing
             AssessmentSummary::where('assessment_country_id', $assessmentCountry->id)->delete();
 

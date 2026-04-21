@@ -16,7 +16,7 @@
     </div>
 
     <div class="period-table-card">
-      <div class="table-responsive">
+      <div class="table-responsive" style="padding: 10px;">
         <table class="table period-table align-middle mb-0">
           <thead>
             <tr>

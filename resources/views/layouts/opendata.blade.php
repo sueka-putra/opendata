@@ -10,12 +10,21 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
     <link href="{{ asset('css/opendata.css') }}" rel="stylesheet">
     <link href="{{ asset('css/trx-shared.css') }}" rel="stylesheet">
+    @stack('styles')
     <link rel="icon" type="image/x-icon" href="/img/opendata3.png">
 </head>
 <body class="od-app">
 @php
-    $isAdmin = auth()->user()?->isAdmin();
-    $initial = strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1));
+    $authUser = auth()->user();
+    $isAdmin = $authUser?->isAdmin();
+    $initial = strtoupper(substr($authUser?->name ?? 'U', 0, 1));
+    $adminCode = (string) config('opendata.admin_country_code', '00');
+    $countryName = \App\Models\Country::query()
+        ->where('code', (string) ($authUser?->country_code ?? ''))
+        ->value('name');
+    if (!$countryName && (string) ($authUser?->country_code ?? '') === $adminCode) {
+        $countryName = 'ASEANstats';
+    }
 @endphp
 
 <header class="od-topbar">
@@ -38,8 +47,8 @@
                     <div class="od-user-head d-flex align-items-center gap-2">
                         <span class="od-avatar">{{ $initial }}</span>
                         <div>
-                            <p class="od-user-name">{{ auth()->user()?->name ?? '-' }}</p>
-                            <p class="od-user-email">{{ auth()->user()?->email ?? '-' }}</p>
+                            <p class="od-user-name">{{ $authUser?->name ?? '-' }}</p>
+                            <p class="od-user-email">{{ $authUser?->email ?? '-' }}</p>
                         </div>
                     </div>
                     <a class="dropdown-item od-dropdown-action" href="{{ route('profile.edit') }}">My Profile</a>
@@ -61,11 +70,11 @@
             <div class="od-user-card-head">
                 <span class="od-avatar">{{ $initial }}</span>
                 <div class="od-user-text">
-                    <p class="od-user-name">{{ auth()->user()?->name ?? '-' }}</p>
-                    <p class="od-user-email">{{ auth()->user()?->email ?? '-' }}</p>
+                    <p class="od-user-name">{{ $authUser?->name ?? '-' }}</p>
+                    <p class="od-user-email">{{ $authUser?->email ?? '-' }}</p>
                 </div>
             </div>
-            <span class="od-role-chip">{{ $isAdmin ? 'Administrator' : 'User' }}</span>
+            <span class="od-role-chip">{{ $countryName ?? '-' }}</span>
         </div>
 
         <nav class="od-menu">
@@ -83,8 +92,8 @@
                 </button>
             </form>
 
-            <p class="od-menu-section mt-2">Admin</p>
             @if($isAdmin)
+            <p class="od-menu-section mt-2">Admin</p>
             <a class="od-menu-link {{ request()->routeIs('trx.periods') ? 'active' : '' }}" href="{{ route('trx.periods') }}">
                 <i class="fa-solid fa-calendar-days"></i><span>Periods</span>
             </a>

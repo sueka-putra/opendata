@@ -70,20 +70,6 @@
   </div>
 </div>
 
-<div class="modal fade period-dialog" id="mdlConfirmDelete" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title">Confirm Delete</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">
-        <p class="mb-0" id="deleteBody">Delete this user?</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn od-btn-outline" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-danger" id="btnConfirmDelete">Delete</button>
-      </div>
-    </div>
-  </div>
-</div>
 @endsection
 
 @push('scripts')
@@ -91,7 +77,8 @@
 const tblBody = document.querySelector('#tbl tbody');
 const mdl = new bootstrap.Modal(document.getElementById('mdl'));
 const mdlMessage = new bootstrap.Modal(document.getElementById('mdlMessage'));
-const mdlConfirmDelete = new bootstrap.Modal(document.getElementById('mdlConfirmDelete'));
+const flashStatus = @json(session('status'));
+const profileEditBase = @json(route('profile.edit'));
 const countries = [
   { code: '00', name: 'ASEAN Secretariat' },
   { code: 'BN', name: 'Brunei Darussalam' },
@@ -106,7 +93,6 @@ const countries = [
   { code: 'VN', name: 'Viet Nam' },
 ];
 let usersCache = [];
-let deleteTargetId = null;
 
 function showMessage(title, message){
   document.getElementById('msgTitle').textContent = title;
@@ -138,8 +124,7 @@ async function load(){
       <td>${r.person_name ?? ''}</td>
       <td>${countryName(r.country_code)}</td>
       <td class="text-end">
-        <button class="btn btn-outline-primary btn-sm" data-act="edit" data-id="${r.id}">Edit</button>
-        <button class="btn btn-outline-danger btn-sm" data-act="del" data-id="${r.id}">Delete</button>
+        <a class="btn btn-outline-primary btn-sm" href="${profileEditBase}?user_id=${r.id}">Edit</a>
       </td>`;
     tblBody.appendChild(tr);
   });
@@ -159,37 +144,6 @@ function openForm(row={}){
 }
 
 document.getElementById('btnAdd').addEventListener('click', () => openForm({}));
-
-tblBody.addEventListener('click', async (e)=>{
-  const btn = e.target.closest('button');
-  if(!btn) return;
-  const id = btn.getAttribute('data-id');
-  const act = btn.getAttribute('data-act');
-  if(act==='edit'){
-    try{
-      const j = await odFetch(`/api/adm/user/${id}`);
-      openForm(j.data || {});
-    }catch(err){ showMessage('Load Failed', err.message); }
-  }
-  if(act==='del'){
-    deleteTargetId = id;
-    document.getElementById('deleteBody').textContent = 'Delete this user?';
-    mdlConfirmDelete.show();
-  }
-});
-
-document.getElementById('btnConfirmDelete').addEventListener('click', async ()=>{
-  if (!deleteTargetId) return;
-  try{
-    await odFetch(`/api/adm/user/${deleteTargetId}`, {method:'DELETE'});
-    mdlConfirmDelete.hide();
-    deleteTargetId = null;
-    await load();
-    showMessage('Deleted', 'User berhasil dihapus.');
-  }catch(err){
-    showMessage('Delete Failed', err.message);
-  }
-});
 
 document.getElementById('btnSave').addEventListener('click', async ()=>{
   const id = document.getElementById('id').value || null;
@@ -248,5 +202,8 @@ document.getElementById('btnSave').addEventListener('click', async ()=>{
 
 initCountryOptions();
 load();
+if (flashStatus === 'user-deleted') {
+  showMessage('Deleted', 'User berhasil dihapus.');
+}
 </script>
 @endpush

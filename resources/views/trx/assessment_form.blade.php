@@ -38,8 +38,6 @@
                   Section
                   <span
                     class="assessment-help-icon"
-                    tabindex="0"
-                    role="button"
                     aria-label="Section help"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
@@ -54,8 +52,6 @@
                   Category
                   <span
                     class="assessment-help-icon"
-                    tabindex="0"
-                    role="button"
                     aria-label="Category help"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
@@ -78,10 +74,10 @@
             <table class="table period-table align-top mb-0 assessment-table">
               <thead>
                 <tr>
-                  <th style="width:480px;">Dimension</th>
-                  <th style="width:340px;">Coverage</th>
+                  <th style="width:420px;">Dimension</th>
+                  <th style="width:360px;">Coverage</th>
                   <th style="width:360px;">Openness</th>
-                  <th style="min-width:240px;">Evidence & Notes</th>
+                  <th style="min-width:240px; max-width:360px;">Evidence & Notes</th>
                 </tr>
               </thead>
               <tbody id="detailRows">
@@ -99,18 +95,27 @@
             <span class="text-muted small">Computed by server after save.</span>
           </div>
           <div class="table-responsive">
-            <table class="table period-table align-middle mb-0">
+            <table class="table period-table align-middle mb-0 assessment-summary-table">
               <thead>
                 <tr>
-                  <th style="width:80px;">No</th>
-                  <th>Section</th>
-                  <th style="width:160px;">Coverage</th>
-                  <th style="width:160px;">Openness</th>
-                  <th style="width:160px;">Overall</th>
+                  <th style="vertical-align: middle; max-width:430px;" rowspan="2" class="summary-vr">Section</th>
+                  <th style="width:90px; vertical-align: middle;" rowspan="2" class="summary-vr">Progress</th>
+                  <th style="width:340px;" colspan="3" class="text-center summary-vr">Coverage</th>
+                  <th style="width:160px;" colspan="3" class="text-center summary-vr">Opennes</th>
+                  <th style="width:160px;">Overall Score</th>
+                </tr>
+                <tr>
+                  <th style="width:130px;">Max Score</th>
+                  <th style="width:130px;">Actual Score</th>
+                  <th style="width:120px;" class="summary-vr">Sub Score</th>
+                  <th style="width:130px;">Max Score</th>
+                  <th style="width:130px;">Actual Score</th>
+                  <th style="width:120px;" class="summary-vr">Sub Score</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody id="summaryRows">
-                <tr><td colspan="5" class="text-muted">Loading summary...</td></tr>
+                <tr><td colspan="9" class="text-muted">Loading summary...</td></tr>
               </tbody>
             </table>
           </div>
@@ -129,8 +134,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body p-0">
-            <div class="table-responsive">
-              <table class="table period-table align-middle mb-0">
+            <div id="1" class="table-responsive" style="margin:10px; box-sizing:border-box; max-width:100%; max-height:calc(100vh - 220px); overflow:auto;">
+              <table id="tblNavigator" class="table period-table align-middle mb-0">
                 <thead>
                   <tr>
                     <th style="width:90px;">No</th>
@@ -151,17 +156,264 @@
       </div>
     </div>
 
-    <button class="assessment-fab-nav" type="button" id="btnOpenNavigator" aria-label="Open row navigator" title="Open row navigator">
-      <span class="assessment-fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M10.5 3a7.5 7.5 0 1 0 4.72 13.33l4.72 4.72 1.06-1.06-4.72-4.72A7.5 7.5 0 0 0 10.5 3Zm0 1.5a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"></path>
-        </svg>
-      </span>
-      <span class="assessment-fab-label">Navigator</span>
-    </button>
+    <div class="assessment-nav-dock" id="navigatorDock">
+      <div class="assessment-nav-panel" aria-hidden="true">
+        <button class="assessment-nav-action assessment-nav-top" type="button" id="btnNavTop" title="Go to first filtered row">
+          <i class="fa-solid fa-angles-up" aria-hidden="true"></i>
+          <span>Top</span>
+        </button>
+        <button class="assessment-nav-action assessment-nav-jump" type="button" id="btnNavJump" title="Open row navigator dialog">
+          <i class="fa-solid fa-right-left" aria-hidden="true"></i>
+          <span>Go To</span>
+        </button>
+        <button class="assessment-nav-action assessment-nav-bottom" type="button" id="btnNavBottom" title="Go to last filtered row">
+          <i class="fa-solid fa-angles-down" aria-hidden="true"></i>
+          <span>Bottom</span>
+        </button>
+      </div>
+      <button class="assessment-fab-nav" type="button" id="btnNavMain" aria-label="Navigator actions" title="Navigator">
+        <span class="assessment-fab-icon" aria-hidden="true">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        </span>
+        <span class="assessment-fab-label">Navigator</span>
+      </button>
+    </div>
   </div>
 </div>
 @endsection
+
+@push('styles')
+<style>
+  .assessment-summary-table {
+    --summary-divider-color: rgba(44, 96, 167, 0.35);
+  }
+
+  .assessment-summary-table .summary-vr {
+    border-right: 1px solid var(--summary-divider-color) !important;
+  }
+
+  .assessment-summary-table thead th {
+    text-align: center;
+  }
+
+  .assessment-summary-table thead th:first-child {
+    text-align: left;
+  }
+
+  .assessment-summary-table tbody td.summary-num {
+    text-align: right;
+  }
+
+  .assessment-summary-table tbody tr.summary-weighted-row td {
+    text-align: left !important;
+  }
+
+  .assessment-summary-table tbody tr.summary-weighted-row td.summary-num {
+    text-align: right !important;
+  }
+
+  .assessment-metric-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .assessment-metric-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .assessment-metric-row-final {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assessment-metric {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    border: 1px solid #d9e4f4;
+    border-radius: 0.45rem;
+    background: #f7faff;
+    padding: 0.22rem 0.4rem;
+    line-height: 1.2;
+  }
+
+  .assessment-metric span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #4d5d78;
+  }
+
+  .assessment-metric strong {
+    font-size: 0.78rem;
+    color: #1f314f;
+    white-space: nowrap;
+  }
+
+  .assessment-metric.assessment-metric-final {
+    background: #eef5ff;
+    border-color: #c9d9f1;
+  }
+
+  #tblNavigator tbody tr.navigator-row-complete td {
+    background-color: #d9ecff;
+  }
+
+  #tblNavigator tbody tr.navigator-row-partial td {
+    background-color: rgb(229, 246, 234);
+  }
+
+  /*
+  #tblNavigator tbody tr.navigator-row-partial .navigator-jump-btn {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+
+  
+  #tblNavigator tbody tr.navigator-row-partial .navigator-jump-btn:hover,
+  #tblNavigator tbody tr.navigator-row-partial .navigator-jump-btn:focus {
+    background-color: #ffffff;
+    color: #1f6f3d;
+  }
+    */
+
+  #tblNavigator tbody tr.navigator-row-empty td {
+    background-color: #ffffff;
+  }
+
+  .assessment-nav-dock {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1050;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .assessment-nav-dock .assessment-fab-nav {
+    position: relative;
+    top: auto;
+    right: auto;
+    left: auto;
+    bottom: auto;
+    z-index: 2;
+    min-width: 116px;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 9px 14px;
+    background: #2b76e5;
+    box-shadow: 0 8px 20px rgba(16, 73, 160, 0.36);
+  }
+
+  .assessment-nav-panel {
+    position: absolute;
+    right: 0;
+    bottom: 20px;
+    width: 116px;
+    padding: 10px 0 18px;
+    border-radius: 10px;
+    background: #5e97ea;
+    box-shadow: 0 8px 20px rgba(16, 73, 160, 0.25);
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+    transform-origin: bottom right;
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+    z-index: 1;
+  }
+
+  .assessment-nav-action {
+    width: 116px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: #5e97ea;
+    color: #ffffff;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    line-height: 1;
+    box-shadow: none;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .assessment-nav-action span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .assessment-nav-panel .assessment-nav-action.assessment-nav-top {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+
+  .assessment-nav-panel .assessment-nav-action.assessment-nav-bottom {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+  }
+
+  .assessment-nav-dock:hover .assessment-nav-panel,
+  .assessment-nav-dock.is-open .assessment-nav-panel,
+  .assessment-nav-dock:focus-within .assessment-nav-panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  .assessment-nav-dock:hover .assessment-nav-action,
+  .assessment-nav-dock.is-open .assessment-nav-action,
+  .assessment-nav-dock:focus-within .assessment-nav-action {
+    opacity: 1;
+    transform: translateX(0) translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  .assessment-nav-action.assessment-nav-top {
+    transition-delay: 0ms;
+  }
+
+  .assessment-nav-action.assessment-nav-jump {
+    transition-delay: 30ms;
+  }
+
+  .assessment-nav-action.assessment-nav-bottom {
+    transition-delay: 60ms;
+  }
+
+  .assessment-nav-dock .assessment-fab-icon {
+    width: auto;
+    height: auto;
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 991.98px) {
+    .assessment-nav-dock {
+      right: 0.75rem;
+      bottom: 0.75rem;
+    }
+
+    .assessment-nav-dock .assessment-fab-label {
+      display: inline;
+    }
+
+    .assessment-nav-action,
+    .assessment-nav-panel,
+    .assessment-nav-dock .assessment-fab-nav {
+      width: 110px;
+      min-width: 110px;
+    }
+  }
+</style>
+@endpush
 
 @push('scripts')
 <script>
@@ -175,6 +427,7 @@
     detailMeta: null,
     detail: [],
     summary: [],
+    weightedScore: null,
     editable: false,
     filters: {
       sectionId: '',
@@ -214,10 +467,9 @@
     if (!clean) return '';
     return `
       <span class="assessment-help-icon"
-        tabindex="0"
-        role="button"
         aria-label="${esc(label)}"
         data-bs-toggle="tooltip"
+        data-bs-trigger="hover"
         data-bs-placement="top"
         data-bs-custom-class="assessment-help-tooltip"
         title="${esc(clean)}"
@@ -228,7 +480,7 @@
   function initTooltips(scope = document) {
     scope.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
       if (el.dataset.odTooltipInit === '1') return;
-      new bootstrap.Tooltip(el);
+      new bootstrap.Tooltip(el, { trigger: 'hover' });
       el.dataset.odTooltipInit = '1';
     });
   }
@@ -237,11 +489,22 @@
     return v === true || v === 1 || v === '1';
   }
 
-  function parseMetric(raw, fallback = 0) {
+  function parseMetric(raw, fallback = null) {
     const val = String(raw ?? '').trim();
     if (!val) return fallback;
     const num = Number(val);
     return Number.isNaN(num) ? fallback : num;
+  }
+
+  function opennessFieldsComplete(row) {
+    const fields = [
+      row.machine_readability,
+      row.proprietary,
+      row.download_options,
+      row.metadata,
+      row.term_of_use,
+    ];
+    return fields.every((v) => v !== null && v !== undefined && String(v).trim() !== '');
   }
 
   function normalizeSeriesYears(raw) {
@@ -296,18 +559,34 @@
     const isNA = seriesRaw.toUpperCase() === 'NA';
     const hasUrl = String(row.urls ?? '').trim() !== '';
 
-    const metrics = [
-      Number(row.machine_readability ?? 0),
-      Number(row.proprietary ?? 0),
-      Number(row.download_options ?? 0),
-      Number(row.metadata ?? 0),
-      Number(row.term_of_use ?? 0),
-    ];
-    const hasAnyOpenness = metrics.some((v) => !Number.isNaN(v) && v > 0);
-    const isOpennessFilled = isNA || hasAnyOpenness;
+    const isOpennessFilled = isNA || opennessFieldsComplete(row);
     const isUrlFilled = isNA || hasUrl;
 
     return !isCoverageFilled || !isOpennessFilled || !isUrlFilled;
+  }
+
+  function navigatorRowStatus(row) {
+    const seriesRaw = String(row.series ?? '').trim();
+    const urlsRaw = String(row.urls ?? '').trim();
+    const remarksRaw = String(row.remarks ?? '').trim();
+    const isNA = seriesRaw.toUpperCase() === 'NA';
+
+    const hasAnyOpenness = [
+      row.machine_readability,
+      row.proprietary,
+      row.download_options,
+      row.metadata,
+      row.term_of_use,
+    ].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+    const hasAnyInput = seriesRaw !== '' || urlsRaw !== '' || remarksRaw !== '' || hasAnyOpenness;
+    if (!hasAnyInput) return 'empty';
+
+    const isCoverageFilled = seriesRaw !== '';
+    const isOpennessFilled = isNA || opennessFieldsComplete(row);
+    const isUrlFilled = isNA || urlsRaw !== '';
+    if (isCoverageFilled && isOpennessFilled && isUrlFilled) return 'complete';
+
+    return 'partial';
   }
 
   function getFilteredDetailRows() {
@@ -374,8 +653,9 @@
 
     tbody.innerHTML = rows.map((r) => {
       const rowNo = rowPermanentNo(r);
+      const statusClass = `navigator-row-${navigatorRowStatus(r)}`;
       return `
-        <tr>
+        <tr class="${statusClass}">
           <td>#${rowNo}</td>
           <td>${esc(sectionLabel(r))}</td>
           <td>${esc(categoryLabel(r))}</td>
@@ -393,6 +673,13 @@
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     target.classList.add('assessment-row-focus');
     setTimeout(() => target.classList.remove('assessment-row-focus'), 1400);
+  }
+
+  function jumpToFilteredEdge(position = 'top') {
+    const rows = getFilteredDetailRows();
+    if (!rows.length) return;
+    const targetRow = position === 'bottom' ? rows[rows.length - 1] : rows[0];
+    jumpToRow(targetRow.row_id);
   }
 
   function renderMeta() {
@@ -440,33 +727,67 @@
   function renderSummaryRows() {
     const tbody = document.getElementById('summaryRows');
     const rows = Array.isArray(pageState.summary) ? pageState.summary : [];
+    const weighted = pageState.weightedScore || null;
+
+    function fmtPercentInt(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      const num = Number(value);
+      if (Number.isNaN(num)) return '-';
+      return `${Math.round(num)}%`;
+    }
+
+    function fmt2(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      const num = Number(value);
+      if (Number.isNaN(num)) return '-';
+      return num.toFixed(2);
+    }
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No summary available.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-muted">No summary available.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = rows.map((s, idx) => `
+    const sectionRowsHtml = rows.map((s, idx) => `
       <tr>
-        <td>${idx + 1}</td>
-        <td>${esc(s.section?.title || (s.section_id ? `Section ${s.section_id}` : 'Overall'))}</td>
-        <td>${fmtNumber(s.coverage_sub_score)}</td>
-        <td>${fmtNumber(s.opennes_sub_score)}</td>
-        <td>${fmtNumber(s.overall_score)}</td>
+        <td class="summary-vr">${esc(s.section?.title || (s.section_id ? `Section ${s.section_id}` : 'Overall'))}</td>
+        <td class="summary-vr summary-num">${fmtPercentInt(s.progress)}</td>
+        <td class="summary-num">${fmt2(s.coverage_max_score)}</td>
+        <td class="summary-num">${fmt2(s.coverage_actual_score)}</td>
+        <td class="summary-vr summary-num">${fmt2(s.coverage_sub_score_ratio)}</td>
+        <td class="summary-num">${fmt2(s.opennes_max_score)}</td>
+        <td class="summary-num">${fmt2(s.opennes_actual_score)}</td>
+        <td class="summary-vr summary-num">${fmt2(s.opennes_sub_score_ratio)}</td>
+        <td class="summary-num">${fmt2(s.overall_score_ratio)}</td>
       </tr>
     `).join('');
+
+    const weightedRowHtml = `
+      <tr class="table-light fw-semibold summary-weighted-row">
+        <td colspan="2" class="summary-vr">Weighted Score</td>
+        <td colspan="2">Coverage weighted sub score:</td>
+        <td class="summary-vr summary-num">${fmt2(weighted?.coverage_sub_score_ratio)}</td>
+        <td colspan="2">Opennes weighted sub score:</td>
+        <td class="summary-vr summary-num">${fmt2(weighted?.opennes_sub_score_ratio)}</td>
+        <td class="summary-num">${fmt2(weighted?.overall_score_ratio)}</td>
+      </tr>
+    `;
+
+    tbody.innerHTML = `${sectionRowsHtml}${weightedRowHtml}`;
   }
 
   function opennessSelect(field, value, rowId, options, disabled) {
+    const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+    const emptyOption = `<option value="" ${hasValue ? '' : 'selected'}>-- Select --</option>`;
     const opts = options.map((opt) => {
-      const selected = Number(value) === Number(opt) ? 'selected' : '';
+      const selected = hasValue && Number(value) === Number(opt) ? 'selected' : '';
       return `<option value="${opt}" ${selected}>${opt}</option>`;
     }).join('');
 
     return `
       <select class="form-select form-select-sm assessment-input"
         data-row-id="${rowId}" data-field="${field}" ${disabled ? 'disabled' : ''}>
-        ${opts}
+        ${emptyOption}${opts}
       </select>
     `;
   }
@@ -507,14 +828,20 @@
               <textarea class="form-control form-control-sm assessment-input"
                 data-row-id="${r.row_id}" data-field="series" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.series || '')}</textarea>
             </div>
-            <div class="assessment-metric-grid mt-2">
-              <div class="assessment-metric"><span>All</span><strong>${fmtNumber(r.count_all, 0)}</strong></div>
-              <div class="assessment-metric"><span>5</span><strong>${fmtNumber(r.count_5, 0)}</strong></div>
-              <div class="assessment-metric"><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
-              <div class="assessment-metric"><span>C1</span><strong>${fmtNumber(r.c1)}</strong></div>
-              <div class="assessment-metric"><span>C2</span><strong>${fmtNumber(r.c2)}</strong></div>
-              <div class="assessment-metric"><span>C3</span><strong>${fmtNumber(r.c3)}</strong></div>
-              <div class="assessment-metric assessment-metric-final"><span>C</span><strong>${cLabel}</strong></div>
+            <div class="assessment-metric-rows mt-2">
+              <div class="assessment-metric-row">
+                <div class="assessment-metric"><span>All</span><strong>${fmtNumber(r.count_all, 0)}</strong></div>
+                <div class="assessment-metric"><span>5</span><strong>${fmtNumber(r.count_5, 0)}</strong></div>
+                <div class="assessment-metric"><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
+              </div>
+              <div class="assessment-metric-row">
+                <div class="assessment-metric"><span>C1</span><strong>${fmtNumber(r.c1)}</strong></div>
+                <div class="assessment-metric"><span>C2</span><strong>${fmtNumber(r.c2)}</strong></div>
+                <div class="assessment-metric"><span>C3</span><strong>${fmtNumber(r.c3)}</strong></div>
+              </div>
+              <div class="assessment-metric-row assessment-metric-row-final">
+                <div class="assessment-metric assessment-metric-final"><span>Coverage</span><strong>${cLabel}</strong></div>
+              </div>
             </div>
           </td>
           <td>
@@ -610,12 +937,12 @@
     const detailBody = document.getElementById('detailRows');
     const summaryBody = document.getElementById('summaryRows');
     detailBody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading rows...</td></tr>';
-    summaryBody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading summary...</td></tr>';
+    summaryBody.innerHTML = '<tr><td colspan="9" class="text-muted">Loading summary...</td></tr>';
 
     if (!pageState.periodId) {
       showError('Missing query parameter: periodid');
       detailBody.innerHTML = '<tr><td colspan="4" class="text-danger">Invalid period.</td></tr>';
-      summaryBody.innerHTML = '<tr><td colspan="5" class="text-danger">Invalid period.</td></tr>';
+      summaryBody.innerHTML = '<tr><td colspan="9" class="text-danger">Invalid period.</td></tr>';
       return;
     }
 
@@ -635,6 +962,7 @@
         _row_no: index + 1,
       }));
       pageState.summary = data.summary || [];
+      pageState.weightedScore = data.weighted_score || null;
 
       renderMeta();
       renderSummaryRows();
@@ -642,7 +970,7 @@
       renderDetailRows();
     } catch (err) {
       renderMeta();
-      summaryBody.innerHTML = `<tr><td colspan="5" class="text-danger">${esc(err.message || 'Failed to load summary.')}</td></tr>`;
+      summaryBody.innerHTML = `<tr><td colspan="9" class="text-danger">${esc(err.message || 'Failed to load summary.')}</td></tr>`;
       detailBody.innerHTML = `<tr><td colspan="4" class="text-danger">${esc(err.message || 'Failed to load details.')}</td></tr>`;
       showError(err.message || 'Failed to load assessment');
     }
@@ -654,11 +982,11 @@
       return {
         row_id: r.row_id,
         series: String(r.series ?? ''),
-        machine_readability: parseMetric(r.machine_readability, 0),
-        proprietary: parseMetric(r.proprietary, 0),
-        download_options: parseMetric(r.download_options, 0),
-        metadata: parseMetric(r.metadata, 0),
-        term_of_use: parseMetric(r.term_of_use, 0),
+        machine_readability: parseMetric(r.machine_readability, null),
+        proprietary: parseMetric(r.proprietary, null),
+        download_options: parseMetric(r.download_options, null),
+        metadata: parseMetric(r.metadata, null),
+        term_of_use: parseMetric(r.term_of_use, null),
         urls: String(r.urls ?? ''),
         remarks: String(r.remarks ?? ''),
       };
@@ -728,6 +1056,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
     initTooltips(document);
+    const navigatorDock = document.getElementById('navigatorDock');
 
     document.getElementById('entrySectionFilter').addEventListener('change', (event) => {
       pageState.filters.sectionId = String(event.target.value || '');
@@ -743,9 +1072,22 @@
       pageState.filters.unfinishedOnly = event.target.checked;
       renderDetailRows();
     });
-    document.getElementById('btnOpenNavigator').addEventListener('click', () => {
+    document.getElementById('btnNavMain').addEventListener('click', () => {
+      navigatorDock.classList.toggle('is-open');
+    });
+    document.getElementById('btnNavTop').addEventListener('click', () => {
+      jumpToFilteredEdge('top');
+    });
+    document.getElementById('btnNavJump').addEventListener('click', () => {
+      navigatorDock.classList.remove('is-open');
       renderNavigatorRows();
       navigatorModal.show();
+    });
+    document.getElementById('btnNavBottom').addEventListener('click', () => {
+      jumpToFilteredEdge('bottom');
+    });
+    navigatorDock.addEventListener('mouseleave', () => {
+      navigatorDock.classList.remove('is-open');
     });
     document.getElementById('navigatorRows').addEventListener('click', (event) => {
       const btn = event.target.closest('.navigator-jump-btn');
