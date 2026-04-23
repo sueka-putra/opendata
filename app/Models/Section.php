@@ -8,6 +8,7 @@ class Section extends BaseLegacyModel
 
     protected $casts = [
         'active' => 'boolean',
+        'prefix' => 'string',
     ];
 
     public function periodRows()

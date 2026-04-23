@@ -8,5 +8,6 @@ class Aggregation extends BaseLegacyModel
 
     protected $casts = [
         'active' => 'boolean',
+        'prefix' => 'string',
     ];
 }

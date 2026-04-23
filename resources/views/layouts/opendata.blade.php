@@ -108,7 +108,7 @@
                 <i class="fa-solid fa-chart-line"></i><span>Indicators</span>
             </a>
             <a class="od-menu-link {{ request()->routeIs('adm.sub_indicators') ? 'active' : '' }}" href="{{ route('adm.sub_indicators') }}">
-                <i class="fa-solid fa-list-check"></i><span>Sub-indicators</span>
+                <i class="fa-solid fa-list-check"></i><span>Aggregations</span>
             </a>
             <hr/>
             <a class="od-menu-link {{ request()->routeIs('adm.users') ? 'active' : '' }}" href="{{ route('adm.users') }}">

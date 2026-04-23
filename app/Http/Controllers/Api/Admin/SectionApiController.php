@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\Section;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class SectionApiController extends Controller
 {
@@ -19,8 +21,16 @@ class SectionApiController extends Controller
 
     public function store(Request $request)
     {
+        $id = (int) $request->input('id');
+
         $data = $request->validate([
             'id' => 'nullable|integer',
+            'prefix' => [
+                'required',
+                'string',
+                'max:2',
+                Rule::unique('od_mst_sections', 'prefix')->ignore($id),
+            ],
             'title' => 'required|string|max:50',
             'description' => 'required|string|max:300',
             'active' => 'required|boolean',
@@ -32,6 +42,7 @@ class SectionApiController extends Controller
         if (!empty($data['id'])) {
             $section = Section::findOrFail($data['id']);
             $section->update([
+                'prefix' => $data['prefix'],
                 'title' => $data['title'],
                 'description' => $data['description'],
                 'active' => $data['active'],
@@ -39,6 +50,7 @@ class SectionApiController extends Controller
             ]);
         } else {
             $section = Section::create([
+                'prefix' => $data['prefix'],
                 'title' => $data['title'],
                 'description' => $data['description'],
                 'active' => $data['active'],
@@ -52,8 +64,12 @@ class SectionApiController extends Controller
 
     public function destroy(int $id)
     {
-        // cannot delete if referenced in any period rows
-        $used = DB::table('od_trx_assessment_period_rows')->where('section_id', $id)->exists();
+        $usedInConfigRows = DB::table('od_mst_configuration_rows')->where('section_id', $id)->exists();
+        $usedInLegacyPeriodRows = Schema::hasTable('od_trx_assessment_period_rows')
+            ? DB::table('od_trx_assessment_period_rows')->where('section_id', $id)->exists()
+            : false;
+        $used = $usedInConfigRows || $usedInLegacyPeriodRows;
+
         if ($used) {
             return $this->fail('Section has been used and cannot be deleted', 409);
         }

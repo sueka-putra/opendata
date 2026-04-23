@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 class ScoreService
 {
+    private static function normalizeOpennessValue($value): float
+    {
+        $num = (float) ($value ?? 0);
+        return $num < 0 ? 0.0 : $num;
+    }
+
     /**
      * Parse series string into array of years.
      * Allowed: empty, 'NA', or comma-separated years.
@@ -91,11 +97,11 @@ class ScoreService
     public static function computeRowOpenness(array $row): float
     {
         // Expect O1-O5 already validated to allowed set.
-        return (float) ($row['machine_readability'] ?? 0)
-            + (float) ($row['proprietary'] ?? 0)
-            + (float) ($row['download_options'] ?? 0)
-            + (float) ($row['metadata'] ?? 0)
-            + (float) ($row['term_of_use'] ?? 0);
+        return self::normalizeOpennessValue($row['machine_readability'] ?? 0)
+            + self::normalizeOpennessValue($row['proprietary'] ?? 0)
+            + self::normalizeOpennessValue($row['download_options'] ?? 0)
+            + self::normalizeOpennessValue($row['metadata'] ?? 0)
+            + self::normalizeOpennessValue($row['term_of_use'] ?? 0);
     }
 
     /**
@@ -143,11 +149,7 @@ class ScoreService
                     $cov = self::computeRowCoverage((string) $r->series, $referenceYear);
                     if (!$cov['is_na']) {
                         $coverageActual += (float) $cov['c'];
-                        $opennessActual += (float) $r->machine_readability
-                            + (float) $r->proprietary
-                            + (float) $r->download_options
-                            + (float) $r->metadata
-                            + (float) $r->term_of_use;
+                        $opennessActual += self::computeRowOpenness((array) $r);
                     }
                 }
 

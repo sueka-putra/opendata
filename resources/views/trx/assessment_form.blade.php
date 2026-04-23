@@ -1,6 +1,20 @@
 @extends('layouts.opendata')
 
 @section('content')
+@php
+  $uploadTemplateUrl = '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx';
+  $templateCandidates = [
+    public_path('template/ACSS Open Data Assessment Tools.xlsx') => '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
+    public_path('templates/ACSS Open Data Assessment Tools.xlsx') => '/templates/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
+    public_path('templates/ACSS Open Data Assesment Tools.xlsx') => '/templates/ACSS%20Open%20Data%20Assesment%20Tools.xlsx',
+  ];
+  foreach ($templateCandidates as $path => $url) {
+    if (file_exists($path)) {
+      $uploadTemplateUrl = $url;
+      break;
+    }
+  }
+@endphp
 <div class="period-theme-wrap">
   <div class="period-theme-shell assessment-shell">
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
@@ -11,6 +25,14 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <a class="btn od-btn-outline" href="{{ route('dashboard') }}">Back to Dashboard</a>
         <button class="btn od-btn-outline" type="button" id="btnRefreshForm">Refresh</button>
+        <div class="dropdown">
+          <button class="btn od-btn-primary dropdown-toggle" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Upload</button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btnUploadMenu">
+            <li><a class="dropdown-item" id="btnDownloadTemplate" href="{{ $uploadTemplateUrl }}" download>Download Template</a></li>
+            <li><button class="dropdown-item" type="button" id="btnUploadTemplateOpen">Upload Template</button></li>
+          </ul>
+        </div>
+        <button class="btn od-btn-primary" type="button" id="btnExportForm">Export</button>
         <button class="btn od-btn-primary" type="button" id="btnSaveForm">Save</button>
         <button class="btn od-btn-primary" type="button" id="btnSubmitForm">Submit</button>
       </div>
@@ -92,7 +114,7 @@
         <div class="period-table-card mb-3">
           <div class="period-table-toolbar d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <strong class="assessment-toolbar-title">Section Summary</strong>
-            <span class="text-muted small">Computed by server after save.</span>
+            <span class="text-muted small">Computed in real time from current form values.</span>
           </div>
           <div class="table-responsive">
             <table class="table period-table align-middle mb-0 assessment-summary-table">
@@ -102,7 +124,7 @@
                   <th style="width:90px; vertical-align: middle;" rowspan="2" class="summary-vr">Progress</th>
                   <th style="width:340px;" colspan="3" class="text-center summary-vr">Coverage</th>
                   <th style="width:160px;" colspan="3" class="text-center summary-vr">Opennes</th>
-                  <th style="width:160px;">Overall Score</th>
+                  <th style="width:160px;" rowspan="2">Overall Score</th>
                 </tr>
                 <tr>
                   <th style="width:130px;">Max Score</th>
@@ -111,7 +133,6 @@
                   <th style="width:130px;">Max Score</th>
                   <th style="width:130px;">Actual Score</th>
                   <th style="width:120px;" class="summary-vr">Sub Score</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody id="summaryRows">
@@ -151,6 +172,31 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade period-dialog" id="uploadTemplateDialog" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title mb-0">Upload Assessment Template</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted mb-2">Upload Excel template, then data from sheet <strong>Input</strong> will be mapped by <strong>Code (column A)</strong>.</p>
+            <div id="uploadDropzone" class="assessment-upload-dropzone">
+              <input type="file" id="uploadTemplateInput" class="d-none" accept=".xlsx,.xls">
+              <div class="assessment-upload-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+              <p class="mb-1 fw-semibold">Drop Excel file here</p>
+              <p class="mb-2 small text-muted">or click to browse</p>
+              <p id="uploadTemplateFileName" class="small mb-0 text-muted">No file selected.</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn od-btn-outline" type="button" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn od-btn-primary" type="button" id="btnUploadTemplateProcess">Process File</button>
           </div>
         </div>
       </div>
@@ -395,6 +441,28 @@
     font-size: 0.8rem;
   }
 
+  .assessment-upload-dropzone {
+    border: 1px dashed #9cb6d9;
+    border-radius: 12px;
+    background: #f7faff;
+    text-align: center;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
+  }
+
+  .assessment-upload-dropzone:hover,
+  .assessment-upload-dropzone.is-drag-over {
+    border-color: #2b76e5;
+    background: #edf4ff;
+  }
+
+  .assessment-upload-icon {
+    font-size: 1.25rem;
+    color: #2b76e5;
+    margin-bottom: 0.5rem;
+  }
+
   @media (max-width: 991.98px) {
     .assessment-nav-dock {
       right: 0.75rem;
@@ -416,9 +484,12 @@
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   const params = new URLSearchParams(window.location.search);
   let navigatorModal = null;
+  let uploadTemplateModal = null;
+  let uploadTemplateFile = null;
   const pageState = {
     periodId: Number(params.get('periodid') || 0),
     countryCode: String(params.get('country_code') || '').trim(),
@@ -427,6 +498,7 @@
     detailMeta: null,
     detail: [],
     summary: [],
+    summaryLocked: {},
     weightedScore: null,
     editable: false,
     filters: {
@@ -496,6 +568,287 @@
     return Number.isNaN(num) ? fallback : num;
   }
 
+  function clampOpennessMetric(value) {
+    const num = parseMetric(value, 0) || 0;
+    return num < 0 ? 0 : num;
+  }
+
+  function applySeriesNaToOpenness(row) {
+    if (!row) return;
+    const isNa = String(row.series ?? '').trim().toUpperCase() === 'NA';
+    const fields = ['machine_readability', 'proprietary', 'download_options', 'metadata', 'term_of_use'];
+
+    if (isNa) {
+      fields.forEach((f) => {
+        row[f] = -1;
+      });
+      return;
+    }
+
+    fields.forEach((f) => {
+      if (Number(parseMetric(row[f], null)) === -1) {
+        row[f] = null;
+      }
+    });
+  }
+
+  function parseSeriesYears(raw) {
+    const text = String(raw ?? '').trim();
+    if (!text || text.toUpperCase() === 'NA') return [];
+
+    const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+    const years = [];
+
+    for (const part of parts) {
+      const yearMatch = part.match(/^\d{4}$/);
+      if (yearMatch) {
+        years.push(Number(part));
+        continue;
+      }
+
+      const rangeMatch = part.match(/^(\d{4})\s*-\s*(\d{4})$/);
+      if (rangeMatch) {
+        let start = Number(rangeMatch[1]);
+        let end = Number(rangeMatch[2]);
+        if (start > end) [start, end] = [end, start];
+        for (let year = start; year <= end; year += 1) {
+          years.push(year);
+        }
+        continue;
+      }
+
+      const fiscalMatch = part.match(/^(\d{4})\s*\/\s*(\d{4})$/);
+      if (fiscalMatch) {
+        years.push(Math.max(Number(fiscalMatch[1]), Number(fiscalMatch[2])));
+      }
+    }
+
+    return [...new Set(years)].sort((a, b) => a - b);
+  }
+
+  function computeCoverageFromSeries(series, referenceYear) {
+    const raw = String(series ?? '').trim();
+    if (raw.toUpperCase() === 'NA') {
+      return {
+        count_all: null,
+        count_5: null,
+        count_10: null,
+        c1: null,
+        c2: null,
+        c3: null,
+        c: 0,
+        is_na: true,
+      };
+    }
+
+    const years = parseSeriesYears(raw);
+    const countAll = years.length;
+    const year = Number(referenceYear) || new Date().getFullYear();
+    const last5 = Array.from({ length: 5 }, (_, idx) => year - 4 + idx);
+    const last10 = Array.from({ length: 10 }, (_, idx) => year - 9 + idx);
+    const count5 = years.filter((y) => last5.includes(y)).length;
+    const count10 = years.filter((y) => last10.includes(y)).length;
+    const c1 = countAll > 0 ? 1 : 0;
+    const c2 = count5 > 2 ? 1 : (count5 > 1 ? 0.5 : 0);
+    const c3 = count10 > 5 ? 1 : (count10 > 2 ? 0.5 : 0);
+
+    return {
+      count_all: countAll,
+      count_5: count5,
+      count_10: count10,
+      c1,
+      c2,
+      c3,
+      c: c1 + c2 + c3,
+      is_na: false,
+    };
+  }
+
+  function computeRowOpenness(row) {
+    return clampOpennessMetric(row.machine_readability)
+      + clampOpennessMetric(row.proprietary)
+      + clampOpennessMetric(row.download_options)
+      + clampOpennessMetric(row.metadata)
+      + clampOpennessMetric(row.term_of_use);
+  }
+
+  function classifyRowProgress(row) {
+    const seriesRaw = String(row.series ?? '').trim();
+    const urlsRaw = String(row.urls ?? '').trim();
+    const remarksRaw = String(row.remarks ?? '').trim();
+    const isNA = seriesRaw.toUpperCase() === 'NA';
+    const opennessFields = [
+      row.machine_readability,
+      row.proprietary,
+      row.download_options,
+      row.metadata,
+      row.term_of_use,
+    ];
+    const hasAnyOpenness = opennessFields.some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+    const hasAnyInput = seriesRaw !== '' || urlsRaw !== '' || remarksRaw !== '' || hasAnyOpenness;
+
+    if (!hasAnyInput) return 'empty';
+
+    const isCoverageFilled = seriesRaw !== '';
+    const isOpennessFilled = isNA || hasAnyOpenness;
+    const isUrlFilled = isNA || urlsRaw !== '';
+    if (isCoverageFilled && isOpennessFilled && isUrlFilled) return 'completed';
+
+    return 'in_progress';
+  }
+
+  function recomputeLocalScores() {
+    const detailRows = Array.isArray(pageState.detail) ? pageState.detail : [];
+    const referenceYear = Number(pageState.period?.year) || new Date().getFullYear();
+
+    detailRows.forEach((row) => {
+      applySeriesNaToOpenness(row);
+      const cov = computeCoverageFromSeries(row.series, referenceYear);
+      row.count_all = cov.count_all;
+      row.count_5 = cov.count_5;
+      row.count_10 = cov.count_10;
+      row.c1 = cov.c1;
+      row.c2 = cov.c2;
+      row.c3 = cov.c3;
+      row.c = cov.c;
+      row.o = cov.is_na ? 0 : computeRowOpenness(row);
+    });
+
+    const bySection = new Map();
+    detailRows.forEach((row) => {
+      const key = String(row.section_id ?? '');
+      if (!key) return;
+      if (!bySection.has(key)) bySection.set(key, []);
+      bySection.get(key).push(row);
+    });
+
+    const summaries = [];
+    bySection.forEach((sectionRows, sectionId) => {
+      const eligible = sectionRows.filter((row) => String(row.series ?? '').trim().toUpperCase() !== 'NA');
+      const coverageMax = eligible.length * 3;
+      const opennessMax = eligible.length * 5;
+      let coverageActual = 0;
+      let opennessActual = 0;
+      let completed = 0;
+      let inProgress = 0;
+
+      sectionRows.forEach((row) => {
+        const cov = computeCoverageFromSeries(row.series, referenceYear);
+        const progress = classifyRowProgress(row);
+        if (progress === 'completed') completed += 1;
+        if (progress === 'in_progress') inProgress += 1;
+
+        if (!cov.is_na) {
+          coverageActual += Number(cov.c || 0);
+          opennessActual += computeRowOpenness(row);
+        }
+      });
+
+      const coverageSubRatio = coverageMax > 0 ? (coverageActual / coverageMax) : 0;
+      const opennessSubRatio = opennessMax > 0 ? (opennessActual / opennessMax) : 0;
+      const overallRatio = (0.5 * coverageSubRatio) + (0.5 * opennessSubRatio);
+      const progressPct = sectionRows.length > 0
+        ? (((0.5 * inProgress) + completed) / sectionRows.length) * 100
+        : 0;
+
+      summaries.push({
+        section_id: Number(sectionId),
+        section: {
+          title: sectionLabel(sectionRows[0]),
+        },
+        total_rows: sectionRows.length,
+        in_progress_rows: inProgress,
+        completed_rows: completed,
+        progress: Math.round(progressPct * 100) / 100,
+        coverage_max_score: coverageMax,
+        coverage_actual_score: coverageActual,
+        coverage_sub_score_ratio: Math.round(coverageSubRatio * 1000000) / 1000000,
+        opennes_max_score: opennessMax,
+        opennes_actual_score: opennessActual,
+        opennes_sub_score_ratio: Math.round(opennessSubRatio * 1000000) / 1000000,
+        overall_score_ratio: Math.round(overallRatio * 1000000) / 1000000,
+      });
+    });
+
+    const lockedBySection = pageState.summaryLocked || {};
+    const mergedSummaries = [];
+    const visibleKeys = new Set();
+
+    summaries.forEach((s) => {
+      const key = String(s.section_id);
+      visibleKeys.add(key);
+      const locked = lockedBySection[key] || {};
+      const coverageMax = Number(s.coverage_max_score || 0) + Number(locked.coverage_max_score || 0);
+      const coverageActual = Number(s.coverage_actual_score || 0) + Number(locked.coverage_actual_score || 0);
+      const opennessMax = Number(s.opennes_max_score || 0) + Number(locked.opennes_max_score || 0);
+      const opennessActual = Number(s.opennes_actual_score || 0) + Number(locked.opennes_actual_score || 0);
+      const coverageSubRatio = coverageMax > 0 ? (coverageActual / coverageMax) : 0;
+      const opennessSubRatio = opennessMax > 0 ? (opennessActual / opennessMax) : 0;
+      const overallRatio = (0.5 * coverageSubRatio) + (0.5 * opennessSubRatio);
+
+      mergedSummaries.push({
+        ...s,
+        section: {
+          title: s.section?.title || locked.section_title || `Section ${key}`,
+        },
+        coverage_max_score: coverageMax,
+        coverage_actual_score: coverageActual,
+        coverage_sub_score_ratio: Math.round(coverageSubRatio * 1000000) / 1000000,
+        opennes_max_score: opennessMax,
+        opennes_actual_score: opennessActual,
+        opennes_sub_score_ratio: Math.round(opennessSubRatio * 1000000) / 1000000,
+        overall_score_ratio: Math.round(overallRatio * 1000000) / 1000000,
+      });
+    });
+
+    Object.entries(lockedBySection).forEach(([key, locked]) => {
+      if (visibleKeys.has(key)) return;
+
+      const coverageMax = Number(locked.coverage_max_score || 0);
+      const coverageActual = Number(locked.coverage_actual_score || 0);
+      const opennessMax = Number(locked.opennes_max_score || 0);
+      const opennessActual = Number(locked.opennes_actual_score || 0);
+      const coverageSubRatio = coverageMax > 0 ? (coverageActual / coverageMax) : 0;
+      const opennessSubRatio = opennessMax > 0 ? (opennessActual / opennessMax) : 0;
+      const overallRatio = (0.5 * coverageSubRatio) + (0.5 * opennessSubRatio);
+
+      mergedSummaries.push({
+        section_id: Number(key),
+        section: { title: locked.section_title || `Section ${key}` },
+        total_rows: 0,
+        in_progress_rows: 0,
+        completed_rows: 0,
+        progress: Number(locked.progress || 0),
+        coverage_max_score: coverageMax,
+        coverage_actual_score: coverageActual,
+        coverage_sub_score_ratio: Math.round(coverageSubRatio * 1000000) / 1000000,
+        opennes_max_score: opennessMax,
+        opennes_actual_score: opennessActual,
+        opennes_sub_score_ratio: Math.round(opennessSubRatio * 1000000) / 1000000,
+        overall_score_ratio: Math.round(overallRatio * 1000000) / 1000000,
+      });
+    });
+
+    mergedSummaries.sort((a, b) => a.section_id - b.section_id);
+    pageState.summary = mergedSummaries;
+
+    let weightedCoverage = 0;
+    let weightedOpenness = 0;
+    if (mergedSummaries.length > 0) {
+      mergedSummaries.forEach((s) => {
+        weightedCoverage += s.coverage_sub_score_ratio;
+        weightedOpenness += s.opennes_sub_score_ratio;
+      });
+      weightedCoverage = weightedCoverage / mergedSummaries.length;
+      weightedOpenness = weightedOpenness / mergedSummaries.length;
+    }
+    pageState.weightedScore = {
+      coverage_sub_score_ratio: Math.round(weightedCoverage * 1000000) / 1000000,
+      opennes_sub_score_ratio: Math.round(weightedOpenness * 1000000) / 1000000,
+      overall_score_ratio: Math.round(((0.5 * weightedCoverage) + (0.5 * weightedOpenness)) * 1000000) / 1000000,
+    };
+  }
+
   function opennessFieldsComplete(row) {
     const fields = [
       row.machine_readability,
@@ -514,7 +867,7 @@
     const tokens = original.split(',').map((token) => token.trim()).filter(Boolean);
     if (!tokens.length) return '';
 
-    const years = [];
+    const years = new Set();
 
     for (const token of tokens) {
       const rangeMatch = token.match(/^(\d{4})\s*-\s*(\d{4})$/);
@@ -525,20 +878,20 @@
           [start, end] = [end, start];
         }
         for (let year = start; year <= end; year += 1) {
-          years.push(String(year));
+          years.add(year);
         }
         continue;
       }
 
       if (/^\d{4}$/.test(token)) {
-        years.push(token);
+        years.add(Number(token));
         continue;
       }
 
       return original;
     }
 
-    return years.join(',');
+    return [...years].sort((a, b) => a - b).join(',');
   }
 
   function sectionLabel(row) {
@@ -554,39 +907,14 @@
   }
 
   function isRowUnfinished(row) {
-    const seriesRaw = String(row.series ?? '').trim();
-    const isCoverageFilled = seriesRaw !== '';
-    const isNA = seriesRaw.toUpperCase() === 'NA';
-    const hasUrl = String(row.urls ?? '').trim() !== '';
-
-    const isOpennessFilled = isNA || opennessFieldsComplete(row);
-    const isUrlFilled = isNA || hasUrl;
-
-    return !isCoverageFilled || !isOpennessFilled || !isUrlFilled;
+    return classifyRowProgress(row) !== 'completed';
   }
 
   function navigatorRowStatus(row) {
-    const seriesRaw = String(row.series ?? '').trim();
-    const urlsRaw = String(row.urls ?? '').trim();
-    const remarksRaw = String(row.remarks ?? '').trim();
-    const isNA = seriesRaw.toUpperCase() === 'NA';
-
-    const hasAnyOpenness = [
-      row.machine_readability,
-      row.proprietary,
-      row.download_options,
-      row.metadata,
-      row.term_of_use,
-    ].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
-    const hasAnyInput = seriesRaw !== '' || urlsRaw !== '' || remarksRaw !== '' || hasAnyOpenness;
-    if (!hasAnyInput) return 'empty';
-
-    const isCoverageFilled = seriesRaw !== '';
-    const isOpennessFilled = isNA || opennessFieldsComplete(row);
-    const isUrlFilled = isNA || urlsRaw !== '';
-    if (isCoverageFilled && isOpennessFilled && isUrlFilled) return 'complete';
-
-    return 'partial';
+    const progress = classifyRowProgress(row);
+    if (progress === 'completed') return 'complete';
+    if (progress === 'in_progress') return 'partial';
+    return 'empty';
   }
 
   function getFilteredDetailRows() {
@@ -685,12 +1013,16 @@
   function renderMeta() {
     const meta = document.getElementById('formMeta');
     const hint = document.getElementById('formHint');
+    const uploadBtn = document.getElementById('btnUploadMenu');
+    const exportBtn = document.getElementById('btnExportForm');
     const saveBtn = document.getElementById('btnSaveForm');
     const submitBtn = document.getElementById('btnSubmitForm');
 
     if (!pageState.period || !pageState.assessmentCountry) {
       meta.textContent = 'Assessment information unavailable.';
       hint.style.display = 'none';
+      uploadBtn.disabled = true;
+      exportBtn.disabled = true;
       saveBtn.disabled = true;
       submitBtn.disabled = true;
       return;
@@ -711,6 +1043,8 @@
         ? 'Assessment already submitted. You can still review and update while period is open.'
         : 'Period is open. Fill data, click Save, then Submit when finalized.';
       hint.style.display = 'block';
+      uploadBtn.disabled = false;
+      exportBtn.disabled = false;
       saveBtn.disabled = false;
       submitBtn.disabled = false;
       submitBtn.textContent = isSubmitted ? 'Submitted' : 'Submit';
@@ -718,6 +1052,8 @@
       hint.className = 'period-hint mb-3';
       hint.textContent = 'Period is completed. Assessment is read-only.';
       hint.style.display = 'block';
+      uploadBtn.disabled = true;
+      exportBtn.disabled = false;
       saveBtn.disabled = true;
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submit';
@@ -780,8 +1116,10 @@
     const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
     const emptyOption = `<option value="" ${hasValue ? '' : 'selected'}>-- Select --</option>`;
     const opts = options.map((opt) => {
-      const selected = hasValue && Number(value) === Number(opt) ? 'selected' : '';
-      return `<option value="${opt}" ${selected}>${opt}</option>`;
+      const optValue = (typeof opt === 'object') ? opt.value : opt;
+      const optLabel = (typeof opt === 'object') ? opt.label : opt;
+      const selected = hasValue && Number(value) === Number(optValue) ? 'selected' : '';
+      return `<option value="${optValue}" ${selected}>${optLabel}</option>`;
     }).join('');
 
     return `
@@ -806,8 +1144,12 @@
     }
 
     tbody.innerHTML = rows.map((r, idx) => {
-      const cLabel = (r.c === null || r.c === undefined) ? 'N/A' : fmtNumber(r.c);
-      const oLabel = (r.o === null || r.o === undefined) ? 'N/A' : fmtNumber(r.o);
+      const isSeriesNa = String(r.series ?? '').trim().toUpperCase() === 'NA';
+      const cLabel = isSeriesNa ? '0' : ((r.c === null || r.c === undefined) ? 'N/A' : fmtNumber(r.c));
+      const oLabel = isSeriesNa ? '0' : ((r.o === null || r.o === undefined) ? 'N/A' : fmtNumber(r.o));
+      const c1Label = isSeriesNa ? 'NA' : fmtNumber(r.c1);
+      const c2Label = isSeriesNa ? 'NA' : fmtNumber(r.c2);
+      const c3Label = isSeriesNa ? 'NA' : fmtNumber(r.c3);
       const rowNo = rowPermanentNo(r) || (idx + 1);
       const rowClass = (rowNo % 2 === 0) ? 'assessment-row-even' : 'assessment-row-odd';
 
@@ -835,12 +1177,12 @@
                 <div class="assessment-metric"><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
               </div>
               <div class="assessment-metric-row">
-                <div class="assessment-metric"><span>C1</span><strong>${fmtNumber(r.c1)}</strong></div>
-                <div class="assessment-metric"><span>C2</span><strong>${fmtNumber(r.c2)}</strong></div>
-                <div class="assessment-metric"><span>C3</span><strong>${fmtNumber(r.c3)}</strong></div>
+                <div class="assessment-metric"><span>C1</span><strong>${c1Label}</strong></div>
+                <div class="assessment-metric"><span>C2</span><strong>${c2Label}</strong></div>
+                <div class="assessment-metric"><span>C3</span><strong>${c3Label}</strong></div>
               </div>
               <div class="assessment-metric-row assessment-metric-row-final">
-                <div class="assessment-metric assessment-metric-final"><span>Coverage</span><strong>${cLabel}</strong></div>
+                <div class="assessment-metric assessment-metric-final"><span>Coverage Sub Score</span><strong>${cLabel}</strong></div>
               </div>
             </div>
           </td>
@@ -848,26 +1190,26 @@
             <div class="assessment-openness-grid">
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Machine Readability ${helpIconText(fieldTooltips.machine_readability, 'Machine Readability help')}</label>
-                ${opennessSelect('machine_readability', r.machine_readability, r.row_id, [0, 1], disabled)}
+                ${opennessSelect('machine_readability', r.machine_readability, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Proprietary ${helpIconText(fieldTooltips.proprietary, 'Proprietary help')}</label>
-                ${opennessSelect('proprietary', r.proprietary, r.row_id, [0, 1], disabled)}
+                ${opennessSelect('proprietary', r.proprietary, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Download Options ${helpIconText(fieldTooltips.download_options, 'Download Options help')}</label>
-                ${opennessSelect('download_options', r.download_options, r.row_id, [0, 0.5, 1], disabled)}
+                ${opennessSelect('download_options', r.download_options, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Metadata ${helpIconText(fieldTooltips.metadata, 'Metadata help')}</label>
-                ${opennessSelect('metadata', r.metadata, r.row_id, [0, 0.5, 1], disabled)}
+                ${opennessSelect('metadata', r.metadata, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Term of Use ${helpIconText(fieldTooltips.term_of_use, 'Term of Use help')}</label>
-                ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1], disabled)}
+                ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
               </div>
             </div>
-            <div class="assessment-openness-total mt-2">O: <strong>${oLabel}</strong></div>
+            <div class="assessment-metric assessment-metric-final mt-2"><span>Opennes Sub Score</span><strong>${oLabel}</strong></div>
           </td>
           <td>
             <div class="assessment-field-wrap mb-2">
@@ -888,37 +1230,297 @@
     initTooltips(tbody);
   }
 
+  function normalizeCode(raw) {
+    return String(raw ?? '').trim().toUpperCase();
+  }
+
+  function exportNumeric(value, digits = null) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = parseMetric(value, null);
+    if (num === null || num === undefined || Number.isNaN(num)) return null;
+    if (digits === null) return num;
+    return Number(num.toFixed(digits));
+  }
+
+  function exportOpennessValue(value) {
+    const num = parseMetric(value, null);
+    if (num === null || num === undefined) return null;
+    if (num === -1) return 'NA';
+    return exportNumeric(num, 2);
+  }
+
+  function buildExportRows() {
+    const rows = getFilteredDetailRows();
+    return rows.map((r) => {
+      const isSeriesNa = String(r.series ?? '').trim().toUpperCase() === 'NA';
+      const c1Label = isSeriesNa ? 'NA' : exportNumeric(r.c1, 2);
+      const c2Label = isSeriesNa ? 'NA' : exportNumeric(r.c2, 2);
+      const c3Label = isSeriesNa ? 'NA' : exportNumeric(r.c3, 2);
+      const coverageSubScore = isSeriesNa ? 0 : exportNumeric(r.c, 2);
+      const opennessSubScore = isSeriesNa ? 0 : exportNumeric(r.o, 2);
+
+      return [
+        sectionLabel(r),
+        categoryLabel(r),
+        r.indicator || r.indicator_title || '-',
+        r.aggregation || r.aggregation_title || '-',
+        String(r.series ?? ''),
+        exportNumeric(r.count_all, 0),
+        exportNumeric(r.count_5, 0),
+        exportNumeric(r.count_10, 0),
+        c1Label,
+        c2Label,
+        c3Label,
+        coverageSubScore,
+        exportOpennessValue(r.machine_readability),
+        exportOpennessValue(r.proprietary),
+        exportOpennessValue(r.download_options),
+        exportOpennessValue(r.metadata),
+        exportOpennessValue(r.term_of_use),
+        opennessSubScore,
+        String(r.urls ?? ''),
+        String(r.remarks ?? ''),
+      ];
+    });
+  }
+
+  function exportFormToExcel() {
+    hideError();
+    const rows = buildExportRows();
+    if (!rows.length) {
+      odToast('No rows available to export for current filters.');
+      return;
+    }
+    if (!window.XLSX) {
+      showError('Excel exporter not available.');
+      return;
+    }
+
+    const headers = [
+      'Section',
+      'Category',
+      'Indicator',
+      'Disaggregation',
+      'Series',
+      'Count All',
+      'Count5',
+      'Count last 10 years',
+      'C1',
+      'C2',
+      'C3',
+      'Coverage Sub Score',
+      'Machine Readibility',
+      'Non-Proprietary',
+      'Download Options',
+      'Metadata Availability',
+      'Term of User',
+      'Opennes Sub Score',
+      'URL',
+      'Remark',
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Assessment');
+
+    const periodYear = pageState.period?.year ? String(pageState.period.year) : 'period';
+    const countryCode = pageState.assessmentCountry?.country_code
+      ? String(pageState.assessmentCountry.country_code)
+      : 'country';
+    const now = new Date();
+    const stamp = [
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+    ].join('');
+    const fileName = `assessment_export_${periodYear}_${countryCode}_${stamp}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
+  }
+
+  function cellText(raw) {
+    if (raw === null || raw === undefined) return '';
+    return String(raw).trim();
+  }
+
+  function parseTemplateMetric(raw, allowedValues) {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    if (text.toUpperCase() === 'NA') return -1;
+    const val = Number(text);
+    if (Number.isNaN(val)) return null;
+    return allowedValues.includes(val) ? val : null;
+  }
+
+  function setUploadTemplateFile(file) {
+    uploadTemplateFile = file || null;
+    const label = document.getElementById('uploadTemplateFileName');
+    if (!label) return;
+    label.textContent = uploadTemplateFile ? uploadTemplateFile.name : 'No file selected.';
+  }
+
+  async function applyTemplateRows(file) {
+    if (!file) throw new Error('Please select an Excel file first.');
+    if (!window.XLSX) throw new Error('Excel parser not available.');
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames.includes('Input') ? 'Input' : workbook.SheetNames[0];
+    if (!sheetName) throw new Error('Template has no worksheet.');
+
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!Array.isArray(rows) || rows.length < 2) throw new Error('Template sheet is empty.');
+    const parsedByCode = new Map();
+
+    for (let i = 1; i < rows.length; i += 1) {
+      const xRow = rows[i] || [];
+      const code = normalizeCode(xRow[0]);
+      if (!code || !code.includes('.')) continue;
+
+      const series = normalizeSeriesYears(cellText(xRow[5]));
+      const parsed = {
+        code,
+        series,
+        machine_readability: parseTemplateMetric(xRow[13], [-1, 0, 1]),
+        proprietary: parseTemplateMetric(xRow[14], [-1, 0, 1]),
+        download_options: parseTemplateMetric(xRow[15], [-1, 0, 0.5, 1]),
+        metadata: parseTemplateMetric(xRow[16], [-1, 0, 0.5, 1]),
+        term_of_use: parseTemplateMetric(xRow[17], [-1, 0, 0.5, 1]),
+        urls: cellText(xRow[19]),
+        remarks: cellText(xRow[20]),
+      };
+
+      if (String(series).trim().toUpperCase() === 'NA') {
+        parsed.machine_readability = -1;
+        parsed.proprietary = -1;
+        parsed.download_options = -1;
+        parsed.metadata = -1;
+        parsed.term_of_use = -1;
+      }
+
+      parsedByCode.set(code, parsed);
+    }
+    return { sheetName, parsedRows: [...parsedByCode.values()] };
+  }
+
+  function openUploadTemplateDialog() {
+    hideError();
+    if (!pageState.editable) {
+      odToast('Period is completed. Upload is disabled.');
+      return;
+    }
+    setUploadTemplateFile(null);
+    const uploadInput = document.getElementById('uploadTemplateInput');
+    if (uploadInput) uploadInput.value = '';
+    uploadTemplateModal.show();
+  }
+
+  async function processUploadTemplate() {
+    hideError();
+    if (!pageState.editable) {
+      odToast('Period is completed. Upload is disabled.');
+      return;
+    }
+
+    const btn = document.getElementById('btnUploadTemplateProcess');
+    btn.disabled = true;
+
+    try {
+      const result = await applyTemplateRows(uploadTemplateFile);
+      if (pageState.assessmentCountry?.id) {
+        const uploadResult = await odFetch('/api/trx/form/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            periodid: pageState.periodId,
+            countryid: pageState.assessmentCountry.id,
+            rows: result.parsedRows,
+          }),
+        });
+        result.matched = Number(uploadResult?.data?.matched || 0);
+      } else {
+        result.matched = 0;
+      }
+      uploadTemplateModal.hide();
+      await loadForm();
+      const uploadedCount = Array.isArray(result.parsedRows) ? result.parsedRows.length : 0;
+      const skipped = Math.max(0, uploadedCount - Number(result.matched || 0));
+      odToast(`Template processed from sheet "${result.sheetName}". Uploaded: ${uploadedCount}, matched: ${result.matched}, skipped: ${skipped}.`);
+    } catch (err) {
+      showError(err.message || 'Failed to process template.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function setRowField(rowId, field, value) {
     const row = pageState.detail.find((r) => String(r.row_id) === String(rowId));
     if (!row) return;
+    const opennessFields = ['machine_readability', 'proprietary', 'download_options', 'metadata', 'term_of_use'];
+    if (opennessFields.includes(field) && String(row.series ?? '').trim().toUpperCase() === 'NA') {
+      row[field] = -1;
+      return;
+    }
     row[field] = value;
+    if (field === 'series') {
+      applySeriesNaToOpenness(row);
+    }
   }
 
   function bindEntryInputSync() {
     const tbody = document.getElementById('detailRows');
-    tbody.addEventListener('input', (event) => {
-      const target = event.target;
-      if (!target.classList.contains('assessment-input')) return;
-      setRowField(target.dataset.rowId, target.dataset.field, target.value);
-    });
-    tbody.addEventListener('change', (event) => {
-      const target = event.target;
-      if (!target.classList.contains('assessment-input')) return;
-      setRowField(target.dataset.rowId, target.dataset.field, target.value);
-      if (pageState.filters.unfinishedOnly) {
-        renderDetailRows();
-      }
-    });
-    tbody.addEventListener('focusout', (event) => {
-      const target = event.target;
-      if (!target.classList.contains('assessment-input')) return;
-      if (target.dataset.field !== 'series') return;
 
+    function commitSeriesValue(target) {
       const normalized = normalizeSeriesYears(target.value);
       if (target.value !== normalized) {
         target.value = normalized;
       }
       setRowField(target.dataset.rowId, target.dataset.field, target.value);
+      recomputeLocalScores();
+      renderSummaryRows();
+      renderDetailRows();
+    }
+
+    tbody.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!target.classList.contains('assessment-input')) return;
+      setRowField(target.dataset.rowId, target.dataset.field, target.value);
+      recomputeLocalScores();
+      renderSummaryRows();
+    });
+
+    tbody.addEventListener('keydown', (event) => {
+      const target = event.target;
+      if (!target.classList.contains('assessment-input')) return;
+      if (target.dataset.field !== 'series') return;
+      if (event.key !== 'Tab' || event.shiftKey) return;
+
+      event.preventDefault();
+      const rowId = target.dataset.rowId;
+      commitSeriesValue(target);
+
+      setTimeout(() => {
+        const next = document.querySelector(`.assessment-input[data-row-id="${rowId}"][data-field="machine_readability"]`);
+        if (next) next.focus();
+      }, 0);
+    });
+
+    tbody.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!target.classList.contains('assessment-input')) return;
+
+      if (target.dataset.field === 'series') {
+        commitSeriesValue(target);
+        return;
+      }
+
+      setRowField(target.dataset.rowId, target.dataset.field, target.value);
+      recomputeLocalScores();
+      renderSummaryRows();
+      renderDetailRows();
     });
   }
 
@@ -961,8 +1563,34 @@
         ...row,
         _row_no: index + 1,
       }));
-      pageState.summary = data.summary || [];
-      pageState.weightedScore = data.weighted_score || null;
+      pageState.summary = [];
+      pageState.summaryLocked = {};
+      pageState.weightedScore = null;
+
+      const serverSummaries = Array.isArray(data.summary) ? data.summary : [];
+      recomputeLocalScores();
+
+      const visibleBySection = new Map((pageState.summary || []).map((s) => [String(s.section_id), s]));
+      const lockedBySection = {};
+      serverSummaries.forEach((s) => {
+        const key = String(s.section_id ?? '');
+        if (!key) return;
+        const visible = visibleBySection.get(key);
+        const coverageMax = Math.max(0, Number(s.coverage_max_score || 0) - Number(visible?.coverage_max_score || 0));
+        const coverageActual = Math.max(0, Number(s.coverage_actual_score || 0) - Number(visible?.coverage_actual_score || 0));
+        const opennessMax = Math.max(0, Number(s.opennes_max_score || 0) - Number(visible?.opennes_max_score || 0));
+        const opennessActual = Math.max(0, Number(s.opennes_actual_score || 0) - Number(visible?.opennes_actual_score || 0));
+        lockedBySection[key] = {
+          section_title: s.section?.title || s.section_title || null,
+          progress: Number(s.progress || 0),
+          coverage_max_score: coverageMax,
+          coverage_actual_score: coverageActual,
+          opennes_max_score: opennessMax,
+          opennes_actual_score: opennessActual,
+        };
+      });
+      pageState.summaryLocked = lockedBySection;
+      recomputeLocalScores();
 
       renderMeta();
       renderSummaryRows();
@@ -979,14 +1607,15 @@
   function collectRowsPayload() {
     const sourceRows = Array.isArray(pageState.detail) ? pageState.detail : [];
     return sourceRows.map((r) => {
+      const isSeriesNa = String(r.series ?? '').trim().toUpperCase() === 'NA';
       return {
         row_id: r.row_id,
         series: String(r.series ?? ''),
-        machine_readability: parseMetric(r.machine_readability, null),
-        proprietary: parseMetric(r.proprietary, null),
-        download_options: parseMetric(r.download_options, null),
-        metadata: parseMetric(r.metadata, null),
-        term_of_use: parseMetric(r.term_of_use, null),
+        machine_readability: isSeriesNa ? -1 : parseMetric(r.machine_readability, null),
+        proprietary: isSeriesNa ? -1 : parseMetric(r.proprietary, null),
+        download_options: isSeriesNa ? -1 : parseMetric(r.download_options, null),
+        metadata: isSeriesNa ? -1 : parseMetric(r.metadata, null),
+        term_of_use: isSeriesNa ? -1 : parseMetric(r.term_of_use, null),
         urls: String(r.urls ?? ''),
         remarks: String(r.remarks ?? ''),
       };
@@ -1027,7 +1656,7 @@
     if (!pageState.editable) return;
     if (!pageState.assessmentCountry) return;
 
-    const confirmed = confirm('Submit this assessment? You can still update while period remains open.');
+    const confirmed = await odConfirm('Submit this assessment? You can still update while period remains open.', 'Submit Assessment');
     if (!confirmed) return;
 
     const btnSave = document.getElementById('btnSaveForm');
@@ -1055,8 +1684,11 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
+    uploadTemplateModal = new bootstrap.Modal(document.getElementById('uploadTemplateDialog'));
     initTooltips(document);
     const navigatorDock = document.getElementById('navigatorDock');
+    const uploadDropzone = document.getElementById('uploadDropzone');
+    const uploadInput = document.getElementById('uploadTemplateInput');
 
     document.getElementById('entrySectionFilter').addEventListener('change', (event) => {
       pageState.filters.sectionId = String(event.target.value || '');
@@ -1098,8 +1730,33 @@
     });
     bindEntryInputSync();
     document.getElementById('btnRefreshForm').addEventListener('click', loadForm);
+    document.getElementById('btnUploadTemplateOpen').addEventListener('click', openUploadTemplateDialog);
+    document.getElementById('btnUploadTemplateProcess').addEventListener('click', processUploadTemplate);
+    document.getElementById('btnExportForm').addEventListener('click', exportFormToExcel);
     document.getElementById('btnSaveForm').addEventListener('click', saveForm);
     document.getElementById('btnSubmitForm').addEventListener('click', submitForm);
+
+    uploadDropzone.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', (event) => {
+      const [file] = event.target.files || [];
+      setUploadTemplateFile(file || null);
+    });
+    uploadDropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.add('is-drag-over');
+    });
+    uploadDropzone.addEventListener('dragleave', () => {
+      uploadDropzone.classList.remove('is-drag-over');
+    });
+    uploadDropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.remove('is-drag-over');
+      const [file] = event.dataTransfer?.files || [];
+      if (!file) return;
+      setUploadTemplateFile(file);
+      uploadInput.value = '';
+    });
+
     loadForm();
   });
 </script>

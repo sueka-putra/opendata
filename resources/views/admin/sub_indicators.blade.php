@@ -4,8 +4,8 @@
   <div class="period-theme-shell">
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
       <div>
-        <h1 class="h5 period-title">Sub-indicators</h1>
-        <div class="period-subtitle">Manage sub-indicator master data for assessment configuration.</div>
+        <h1 class="h5 period-title">Aggregations</h1>
+        <div class="period-subtitle">Manage aggregation master data for assessment configuration.</div>
       </div>
       <div class="d-flex gap-2">
         <button class="btn od-btn-primary" id="btnAdd">Add</button>
@@ -17,6 +17,7 @@
         <table class="table period-table align-middle mb-0" id="tbl">
           <thead>
             <tr>
+              <th style="width:90px;">Prefix</th>
               <th style="width:280px;">Title</th>
               <th>Description</th>
               <th style="width:90px;">Active</th>
@@ -35,9 +36,10 @@
 <div class="modal fade period-dialog" id="mdl" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title">Sub-indicator</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header"><h5 class="modal-title">Aggregation</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <input type="hidden" id="id">
+        <div class="mb-2"><label class="form-label">Prefix</label><input class="form-control" id="prefix" maxlength="3"></div>
         <div class="mb-2"><label class="form-label">Title</label><input class="form-control" id="title" maxlength="50"></div>
         <div class="mb-2"><label class="form-label">Description</label><textarea class="form-control" id="desc" maxlength="300" rows="4"></textarea></div>
         <div class="form-check"><input class="form-check-input" type="checkbox" id="active" checked><label class="form-check-label" for="active">Active</label></div>
@@ -70,6 +72,7 @@ async function load(){
   (j.data||[]).forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td>${r.prefix ?? ''}</td>
       <td>${r.title}</td>
       <td>${r.description}</td>
       <td>${r.active ? 'Yes' : 'No'}</td>
@@ -85,6 +88,7 @@ async function load(){
 
 function openForm(row={}){
   document.getElementById('id').value = row.id || '';
+  document.getElementById('prefix').value = row.prefix || '';
   document.getElementById('title').value = row.title || '';
   document.getElementById('desc').value = row.description || '';
   document.getElementById('active').checked = (row.active ?? true);
@@ -104,7 +108,8 @@ tblBody.addEventListener('click', async (e)=>{
     openForm(row||{});
   }
   if(act==='del'){
-    if(!confirm('Delete this sub-indicator?')) return;
+    const confirmed = await odConfirm('Delete this aggregation?', 'Delete Aggregation');
+    if(!confirmed) return;
     try{ await odFetch(`/api/adm/sub-indicator/${id}`, {method:'DELETE'}); await load(); }
     catch(err){ odToast(err.message); }
   }
@@ -113,6 +118,7 @@ tblBody.addEventListener('click', async (e)=>{
 document.getElementById('btnSave').addEventListener('click', async ()=>{
   const payload = {
     id: document.getElementById('id').value || null,
+    prefix: document.getElementById('prefix').value,
     title: document.getElementById('title').value,
     description: document.getElementById('desc').value,
     active: document.getElementById('active').checked,

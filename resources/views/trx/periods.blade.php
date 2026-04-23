@@ -28,6 +28,7 @@
           <thead>
             <tr>
               <th style="width: 120px;">Year</th>
+              <th>Description</th>
               <th style="width: 140px;">Status</th>
               <th style="width: 240px;">Actions</th>
               <th style="width: 210px;">Create Time</th>
@@ -35,7 +36,7 @@
             </tr>
           </thead>
           <tbody id="tbPeriods">
-            <tr><td colspan="5" class="text-muted">Loading...</td></tr>
+            <tr><td colspan="6" class="text-muted">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -91,10 +92,11 @@
                     <th>Category</th>
                     <th>Indicator</th>
                     <th>Dissagregation</th>
+                    <th style="width: 160px;">ASEANstats only</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td colspan="5" class="text-muted">Select a configuration to preview rows.</td></tr>
+                  <tr><td colspan="6" class="text-muted">Select a configuration to preview rows.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -141,10 +143,11 @@
                     <th>Category</th>
                     <th>Indicator</th>
                     <th>Disaggregation</th>
+                    <th style="width: 160px;">ASEANstats only</th>
                   </tr>
                 </thead>
                 <tbody id="viewConfigRows">
-                  <tr><td colspan="5" class="text-muted">Loading...</td></tr>
+                  <tr><td colspan="6" class="text-muted">Loading...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -167,11 +170,16 @@
   const periodState = {
     periods: [],
     configurations: null,
+    configRowFlags: {},
     selectedPeriod: null,
     mode: 'create',
   };
 
   let periodDialog;
+
+  function boolFlag(value) {
+    return value === true || value === 1 || value === '1';
+  }
 
   function fmtDateTime(value) {
     if (!value) return '-';
@@ -181,7 +189,7 @@
   }
 
   function isOpenPeriod(period) {
-    if (period.active === true || period.active === 1 || period.active === '1') {
+    if (boolFlag(period.active)) {
       return true;
     }
 
@@ -206,7 +214,7 @@
     const tb = document.getElementById('tbPeriods');
 
     if (!Array.isArray(periods) || periods.length === 0) {
-      tb.innerHTML = '<tr><td colspan="5" class="text-muted">No assessment periods found.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="6" class="text-muted">No assessment periods found.</td></tr>';
       periodState.periods = [];
       setCreateAvailability(false);
       return;
@@ -228,6 +236,7 @@
       return `
         <tr>
           <td class="fw-semibold">${p.year ?? '-'}</td>
+          <td>${p.description || '-'}</td>
           <td>${statusBadge}</td>
           <td>
             <div class="period-actions">
@@ -257,12 +266,12 @@
     el.textContent = message;
   }
 
-  function renderConfigRows(rows, targetSelector) {
+  function renderConfigRows(rows, targetSelector, mode = 'view') {
     const tbody = document.querySelector(targetSelector);
     if (!tbody) return;
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No configuration rows found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted">No configuration rows found.</td></tr>';
       return;
     }
 
@@ -273,6 +282,13 @@
         <td>${r.category_title || '-'}</td>
         <td>${r.indicator_title || '-'}</td>
         <td>${r.disaggregation_title || '-'}</td>
+        <td>${mode === 'create'
+          ? `<select class="form-select form-select-sm cfg-asean-flag" data-row-id="${r.id}">
+               <option value="0" ${(Number(periodState.configRowFlags[r.id] ?? r.aseanstats_only ?? 0) === 0) ? 'selected' : ''}>No</option>
+               <option value="1" ${(Number(periodState.configRowFlags[r.id] ?? r.aseanstats_only ?? 0) === 1) ? 'selected' : ''}>Yes</option>
+             </select>`
+          : ((r.aseanstats_only === null || r.aseanstats_only === undefined) ? '-' : (boolFlag(r.aseanstats_only) ? 'Yes' : 'No'))}
+        </td>
       </tr>
     `).join('');
   }
@@ -291,7 +307,7 @@
 
     if (!configId) {
       hint.textContent = 'Choose configuration used by this assessment period.';
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Select a configuration to preview rows.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted">Select a configuration to preview rows.</td></tr>';
       return;
     }
 
@@ -300,9 +316,14 @@
       hint.textContent = `${selected.description || '-'} (rows: ${selected.row_count ?? 0})`;
     }
 
-    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-muted">Loading...</td></tr>';
     const response = await odFetch(`/api/trx/configuration/${configId}/rows`);
-    renderConfigRows(response.data || [], '#tblConfigRows tbody');
+    const rows = Array.isArray(response.data) ? response.data : [];
+    periodState.configRowFlags = {};
+    rows.forEach((r) => {
+      periodState.configRowFlags[r.id] = boolFlag(r.aseanstats_only) ? 1 : 0;
+    });
+    renderConfigRows(rows, '#tblConfigRows tbody', 'create');
   }
 
   function setDialogMode(mode) {
@@ -337,6 +358,7 @@
     setDialogMode('create');
     document.getElementById('periodYear').value = new Date().getFullYear();
     document.getElementById('periodDescription').value = '';
+    periodState.configRowFlags = {};
 
     try {
       await ensureConfigurationsLoaded();
@@ -348,7 +370,7 @@
 
       if (!periodState.configurations || periodState.configurations.length === 0) {
         setDialogError('No assessment configuration found. Please create configuration first.');
-        document.querySelector('#tblConfigRows tbody').innerHTML = '<tr><td colspan="5" class="text-muted">No configuration available.</td></tr>';
+        document.querySelector('#tblConfigRows tbody').innerHTML = '<tr><td colspan="6" class="text-muted">No configuration available.</td></tr>';
       } else {
         await previewConfiguration(configSelect.value);
       }
@@ -379,7 +401,7 @@
     document.getElementById('viewPeriodDescription').textContent = period.description || '-';
     document.getElementById('viewPeriodConfiguration').textContent = period.config_title || '-';
     const viewRows = document.getElementById('viewConfigRows');
-    viewRows.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
+    viewRows.innerHTML = '<tr><td colspan="6" class="text-muted">Loading...</td></tr>';
 
     const closeBtn = document.getElementById('btnDialogSubmitClose');
     closeBtn.disabled = !open;
@@ -390,9 +412,9 @@
     try {
       const j = await odFetch(`/api/trx/period/${periodId}/rows`);
       const rows = Array.isArray(j.data) ? j.data : [];
-      renderConfigRows(rows, '#viewConfigRows');
+      renderConfigRows(rows, '#viewConfigRows', 'view');
     } catch (err) {
-      viewRows.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load period configuration rows.'}</td></tr>`;
+      viewRows.innerHTML = `<tr><td colspan="6" class="text-danger">${err.message || 'Failed to load period configuration rows.'}</td></tr>`;
     }
   }
 
@@ -402,6 +424,10 @@
     const year = Number(document.getElementById('periodYear').value);
     const description = document.getElementById('periodDescription').value.trim();
     const configId = Number(document.getElementById('periodConfig').value);
+    const aseanstatsOnlyRows = Object.entries(periodState.configRowFlags).map(([id, flag]) => ({
+      id: Number(id),
+      aseanstats_only: boolFlag(flag),
+    }));
 
     if (!year || year < 2000 || year > 2100) {
       setDialogError('Year must be between 2000 and 2100.');
@@ -422,7 +448,7 @@
       await odFetch('/api/trx/period', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year, description, config_id: configId }),
+        body: JSON.stringify({ year, description, config_id: configId, aseanstats_only_rows: aseanstatsOnlyRows }),
       });
       periodDialog.hide();
       await loadPeriods();
@@ -456,7 +482,7 @@
 
   async function loadPeriods() {
     const tb = document.getElementById('tbPeriods');
-    tb.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="text-muted">Loading...</td></tr>';
 
     try {
       const res = await fetch(endpoint, {
@@ -474,7 +500,7 @@
       const periods = Array.isArray(body.data) ? body.data : [];
       renderRows(periods);
     } catch (err) {
-      tb.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message}</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="6" class="text-danger">${err.message}</td></tr>`;
       setCreateAvailability(false);
     }
   }
@@ -489,8 +515,15 @@
     document.getElementById('periodConfig').addEventListener('change', (e) => {
       previewConfiguration(e.target.value).catch((err) => {
         const tbody = document.querySelector('#tblConfigRows tbody');
-        tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load configuration rows.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-danger">${err.message || 'Failed to load configuration rows.'}</td></tr>`;
       });
+    });
+    document.querySelector('#tblConfigRows tbody').addEventListener('change', (e) => {
+      const select = e.target.closest('.cfg-asean-flag');
+      if (!select) return;
+      const rowId = Number(select.getAttribute('data-row-id'));
+      if (!rowId) return;
+      periodState.configRowFlags[rowId] = boolFlag(select.value) ? 1 : 0;
     });
 
     document.getElementById('tbPeriods').addEventListener('click', (e) => {

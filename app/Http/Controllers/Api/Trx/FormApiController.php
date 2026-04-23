@@ -16,6 +16,15 @@ class FormApiController extends Controller
 {
     use JsonEnvelope;
 
+    private function sanitizeTemplateScore($value, array $allowed)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $num = (float) $value;
+        return in_array($num, $allowed, true) ? $num : null;
+    }
+
     private function classifyRowProgress(array $row): string
     {
         $seriesRaw = trim((string) ($row['series'] ?? ''));
@@ -87,6 +96,7 @@ class FormApiController extends Controller
                 'p.year',
                 'ac.country_code',
                 'cr.row_id',
+                'cfg.prefix',
                 'cfg.section_id',
                 'cfg.category_id',
                 'cfg.indicator_id',
@@ -120,7 +130,7 @@ class FormApiController extends Controller
             ->get()
             ->map(function ($r) use ($period) {
                 $cov = ScoreService::computeRowCoverage((string) $r->series, (int) $period->year);
-                $o = (float) $r->machine_readability + (float) $r->proprietary + (float) $r->download_options + (float) $r->metadata + (float) $r->term_of_use;
+                $o = ScoreService::computeRowOpenness((array) $r);
                 return array_merge((array) $r, [
                     'count_all' => $cov['count_all'],
                     'count_5' => $cov['count_5'],
@@ -239,11 +249,11 @@ class FormApiController extends Controller
             'rows' => 'required|array',
             'rows.*.row_id' => 'required|integer',
             'rows.*.series' => 'nullable|string|max:300',
-            'rows.*.machine_readability' => 'nullable|numeric|in:0,1',
-            'rows.*.proprietary' => 'nullable|numeric|in:0,1',
-            'rows.*.download_options' => 'nullable|numeric|in:0,0.5,1',
-            'rows.*.metadata' => 'nullable|numeric|in:0,0.5,1',
-            'rows.*.term_of_use' => 'nullable|numeric|in:0,0.5,1',
+            'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.urls' => 'nullable|string|max:2000',
             'rows.*.remarks' => 'nullable|string|max:2000',
         ]);
@@ -284,11 +294,20 @@ class FormApiController extends Controller
 
         DB::transaction(function () use ($payload, $ac) {
             foreach ($payload['rows'] as $r) {
+                $isSeriesNa = strtoupper(trim((string) ($r['series'] ?? ''))) === 'NA';
                 $machineReadability = array_key_exists('machine_readability', $r) ? $r['machine_readability'] : null;
                 $proprietary = array_key_exists('proprietary', $r) ? $r['proprietary'] : null;
                 $downloadOptions = array_key_exists('download_options', $r) ? $r['download_options'] : null;
                 $metadata = array_key_exists('metadata', $r) ? $r['metadata'] : null;
                 $termOfUse = array_key_exists('term_of_use', $r) ? $r['term_of_use'] : null;
+
+                if ($isSeriesNa) {
+                    $machineReadability = -1;
+                    $proprietary = -1;
+                    $downloadOptions = -1;
+                    $metadata = -1;
+                    $termOfUse = -1;
+                }
 
                 DB::table('od_trx_assessment_country_rows')
                     ->where('assessment_country_id', $ac->id)
@@ -315,6 +334,129 @@ class FormApiController extends Controller
         AuditLogger::log($request, 'update data (save)', $ac->id);
 
         return $this->ok(['summary' => $summaries]);
+    }
+
+    public function uploadTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'periodid' => 'required|integer',
+            'countryid' => 'required|integer',
+            'rows' => 'required|array',
+            'rows.*.code' => 'required|string|max:100',
+            'rows.*.series' => 'nullable|string|max:300',
+            'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.urls' => 'nullable|string|max:2000',
+            'rows.*.remarks' => 'nullable|string|max:2000',
+        ]);
+
+        $ac = AssessmentCountry::where('id', $payload['countryid'])
+            ->where('period_id', $payload['periodid'])
+            ->firstOrFail();
+
+        if (!$request->user()->isAdmin() && $request->user()->country_code !== $ac->country_code) {
+            return $this->fail('Assessment not found', 404);
+        }
+
+        $period = AssessmentPeriod::findOrFail($payload['periodid']);
+        if (!$period->active) {
+            return $this->fail('Assessment period is completed', 409);
+        }
+        $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
+
+        $configRows = DB::table('od_mst_configuration_rows')
+            ->where('config_id', (int) $period->config_id)
+            ->whereNotNull('prefix')
+            ->get(['id', 'prefix', 'aseanstats_only']);
+
+        $configRowByPrefix = $configRows->mapWithKeys(function ($r) {
+            return [strtoupper(trim((string) $r->prefix)) => [
+                'id' => (int) $r->id,
+                'aseanstats_only' => (int) ($r->aseanstats_only ?? 0),
+            ]];
+        });
+
+        $restrictedRowIds = $configRows
+            ->filter(fn ($r) => (int) ($r->aseanstats_only ?? 0) === 1)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $matched = 0;
+        DB::transaction(function () use ($payload, $ac, $configRowByPrefix, $isAseanstatsStaff, $restrictedRowIds, &$matched) {
+            foreach ($payload['rows'] as $r) {
+                $prefix = strtoupper(trim((string) ($r['code'] ?? '')));
+                if ($prefix === '' || !$configRowByPrefix->has($prefix)) {
+                    continue;
+                }
+                $rowConfig = $configRowByPrefix->get($prefix);
+                $rowId = (int) ($rowConfig['id'] ?? 0);
+                $isRestricted = (int) ($rowConfig['aseanstats_only'] ?? 0) === 1;
+                if ($isRestricted && !$isAseanstatsStaff) {
+                    continue;
+                }
+                $series = trim((string) ($r['series'] ?? ''));
+                $isSeriesNa = strtoupper($series) === 'NA';
+
+                $machineReadability = $this->sanitizeTemplateScore($r['machine_readability'] ?? null, [-1.0, 0.0, 1.0]);
+                $proprietary = $this->sanitizeTemplateScore($r['proprietary'] ?? null, [-1.0, 0.0, 1.0]);
+                $downloadOptions = $this->sanitizeTemplateScore($r['download_options'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $metadata = $this->sanitizeTemplateScore($r['metadata'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $termOfUse = $this->sanitizeTemplateScore($r['term_of_use'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+
+                if ($isSeriesNa) {
+                    $machineReadability = -1;
+                    $proprietary = -1;
+                    $downloadOptions = -1;
+                    $metadata = -1;
+                    $termOfUse = -1;
+                }
+
+                DB::table('od_trx_assessment_country_rows')
+                    ->where('assessment_country_id', $ac->id)
+                    ->where('row_id', $rowId)
+                    ->update([
+                        'series' => $series,
+                        'machine_readability' => $machineReadability,
+                        'proprietary' => $proprietary,
+                        'download_options' => $downloadOptions,
+                        'metadata' => $metadata,
+                        'term_of_use' => $termOfUse,
+                        'urls' => $r['urls'] ?? null,
+                        'remarks' => $r['remarks'] ?? null,
+                    ]);
+                $matched++;
+            }
+
+            if (!$isAseanstatsStaff && $restrictedRowIds->isNotEmpty()) {
+                DB::table('od_trx_assessment_country_rows')
+                    ->where('assessment_country_id', $ac->id)
+                    ->whereIn('row_id', $restrictedRowIds->all())
+                    ->update([
+                        'series' => '',
+                        'machine_readability' => 0,
+                        'proprietary' => 0,
+                        'download_options' => 0,
+                        'metadata' => 0,
+                        'term_of_use' => 0,
+                        'urls' => null,
+                        'remarks' => null,
+                    ]);
+            }
+
+            $ac->update(['modified_by' => (int) auth()->id()]);
+        });
+
+        $summaries = ScoreService::recomputeAndPersist($ac);
+        AuditLogger::log($request, 'upload template', $ac->id);
+
+        return $this->ok([
+            'matched' => $matched,
+            'summary' => $summaries,
+        ]);
     }
 
     public function submit(Request $request)

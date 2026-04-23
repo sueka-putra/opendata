@@ -8,5 +8,6 @@ class Category extends BaseLegacyModel
 
     protected $casts = [
         'active' => 'boolean',
+        'prefix' => 'string',
     ];
 }

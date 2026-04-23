@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\Indicator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class IndicatorApiController extends Controller
 {
@@ -19,8 +21,16 @@ class IndicatorApiController extends Controller
 
     public function store(Request $request)
     {
+        $id = (int) $request->input('id');
+
         $data = $request->validate([
             'id' => 'nullable|integer',
+            'prefix' => [
+                'required',
+                'string',
+                'max:3',
+                Rule::unique('od_mst_indicators', 'prefix')->ignore($id),
+            ],
             'title' => 'required|string|max:50',
             'description' => 'required|string|max:300',
             'active' => 'required|boolean',
@@ -30,6 +40,7 @@ class IndicatorApiController extends Controller
         if (!empty($data['id'])) {
             $i = Indicator::findOrFail($data['id']);
             $i->update([
+                'prefix' => $data['prefix'],
                 'title' => $data['title'],
                 'description' => $data['description'],
                 'active' => $data['active'],
@@ -39,6 +50,7 @@ class IndicatorApiController extends Controller
         }
 
         $i = Indicator::create([
+            'prefix' => $data['prefix'],
             'title' => $data['title'],
             'description' => $data['description'],
             'active' => $data['active'],
@@ -50,7 +62,12 @@ class IndicatorApiController extends Controller
 
     public function destroy(int $id)
     {
-        $used = DB::table('od_trx_assessment_period_rows')->where('indicator_id', $id)->exists();
+        $usedInConfigRows = DB::table('od_mst_configuration_rows')->where('indicator_id', $id)->exists();
+        $usedInLegacyPeriodRows = Schema::hasTable('od_trx_assessment_period_rows')
+            ? DB::table('od_trx_assessment_period_rows')->where('indicator_id', $id)->exists()
+            : false;
+        $used = $usedInConfigRows || $usedInLegacyPeriodRows;
+
         if ($used) {
             return $this->fail('Indicator has been used and cannot be deleted', 409);
         }

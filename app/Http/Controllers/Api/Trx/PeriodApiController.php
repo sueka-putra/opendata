@@ -12,6 +12,7 @@ use App\Services\AuditLogger;
 use App\Services\ScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PeriodApiController extends Controller
 {
@@ -75,10 +76,17 @@ class PeriodApiController extends Controller
 
     public function store(Request $request)
     {
+        $hasAseanstatsOnly = Schema::hasColumn('od_mst_configuration_rows', 'aseanstats_only');
+
         $data = $request->validate([
             'year' => 'required|integer|min:2000|max:2100',
             'description' => 'required|string|max:300',
             'config_id' => 'required|integer|exists:od_mst_configurations,id',
+            'aseanstats_only_rows' => 'nullable|array',
+            'aseanstats_only_rows.*.id' => 'required_with:aseanstats_only_rows|integer',
+            'aseanstats_only_rows.*.aseanstats_only' => $hasAseanstatsOnly
+                ? 'required_with:aseanstats_only_rows|boolean'
+                : 'nullable',
         ]);
 
         $hasActive = AssessmentPeriod::where('active', 1)->exists();
@@ -103,7 +111,26 @@ class PeriodApiController extends Controller
 
         $periodId = null;
 
-        DB::transaction(function () use ($data, $userId, $configRowIds, &$periodId) {
+        $flagPayload = collect($data['aseanstats_only_rows'] ?? [])
+            ->filter(fn ($r) => is_array($r) && isset($r['id']) && array_key_exists('aseanstats_only', $r))
+            ->mapWithKeys(function ($r) {
+                return [(int) $r['id'] => (int) ((bool) $r['aseanstats_only'])];
+            });
+
+        DB::transaction(function () use ($data, $userId, $configRowIds, $hasAseanstatsOnly, $flagPayload, &$periodId) {
+            if ($hasAseanstatsOnly && $flagPayload->isNotEmpty()) {
+                $allowedRowIds = $configRowIds->map(fn ($id) => (int) $id)->all();
+                foreach ($flagPayload as $rowId => $flag) {
+                    if (!in_array((int) $rowId, $allowedRowIds, true)) {
+                        continue;
+                    }
+                    DB::table('od_mst_configuration_rows')
+                        ->where('config_id', $data['config_id'])
+                        ->where('id', (int) $rowId)
+                        ->update(['aseanstats_only' => (int) $flag]);
+                }
+            }
+
             $period = AssessmentPeriod::create([
                 'year' => $data['year'],
                 'description' => $data['description'],
@@ -171,25 +198,32 @@ class PeriodApiController extends Controller
 
     private function fetchConfigurationRows(int $configId)
     {
-        return DB::table('od_mst_configuration_rows as r')
+        $query = DB::table('od_mst_configuration_rows as r')
             ->join('od_mst_sections as s', 'r.section_id', '=', 's.id')
             ->join('od_mst_categories as c', 'r.category_id', '=', 'c.id')
             ->join('od_mst_indicators as i', 'r.indicator_id', '=', 'i.id')
             ->leftJoin('od_mst_aggregations as a', 'r.sub_indicator_id', '=', 'a.id')
             ->where('r.config_id', $configId)
             ->orderBy('r.seq_no')
-            ->orderBy('r.id')
-            ->get([
-                'r.id',
-                'r.seq_no',
-                'r.section_id',
-                'r.category_id',
-                'r.indicator_id',
-                'r.sub_indicator_id',
-                's.title as section_title',
-                'c.title as category_title',
-                'i.title as indicator_title',
-                'a.title as disaggregation_title',
-            ]);
+            ->orderBy('r.id');
+
+        $select = [
+            'r.id',
+            'r.seq_no',
+            'r.section_id',
+            'r.category_id',
+            'r.indicator_id',
+            'r.sub_indicator_id',
+            's.title as section_title',
+            'c.title as category_title',
+            'i.title as indicator_title',
+            'a.title as disaggregation_title',
+        ];
+
+        if (Schema::hasColumn('od_mst_configuration_rows', 'aseanstats_only')) {
+            $select[] = 'r.aseanstats_only';
+        }
+
+        return $query->get($select);
     }
 }

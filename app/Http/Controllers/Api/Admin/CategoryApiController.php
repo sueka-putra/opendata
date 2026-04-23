@@ -7,6 +7,8 @@ use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class CategoryApiController extends Controller
 {
@@ -21,8 +23,16 @@ class CategoryApiController extends Controller
 
     public function store(Request $request)
     {
+        $id = (int) $request->input('id');
+
         $data = $request->validate([
             'id' => 'nullable|integer',
+            'prefix' => [
+                'required',
+                'string',
+                'max:3',
+                Rule::unique('od_mst_categories', 'prefix')->ignore($id),
+            ],
             'title' => 'required|string|max:50',
             'description' => 'required|string|max:300',
             'active' => 'required|boolean',
@@ -32,6 +42,7 @@ class CategoryApiController extends Controller
         if (!empty($data['id'])) {
             $cat = Category::findOrFail($data['id']);
             $cat->update([
+                'prefix' => $data['prefix'],
                 'title' => $data['title'],
                 'description' => $data['description'],
                 'active' => $data['active'],
@@ -41,6 +52,7 @@ class CategoryApiController extends Controller
         }
 
         $cat = Category::create([
+            'prefix' => $data['prefix'],
             'title' => $data['title'],
             'description' => $data['description'],
             'active' => $data['active'],
@@ -53,7 +65,12 @@ class CategoryApiController extends Controller
 
     public function destroy(int $id)
     {
-        $used = DB::table('od_trx_assessment_period_rows')->where('category_id', $id)->exists();
+        $usedInConfigRows = DB::table('od_mst_configuration_rows')->where('category_id', $id)->exists();
+        $usedInLegacyPeriodRows = Schema::hasTable('od_trx_assessment_period_rows')
+            ? DB::table('od_trx_assessment_period_rows')->where('category_id', $id)->exists()
+            : false;
+        $used = $usedInConfigRows || $usedInLegacyPeriodRows;
+
         if ($used) {
             return $this->fail('Category has been used and cannot be deleted', 409);
         }
