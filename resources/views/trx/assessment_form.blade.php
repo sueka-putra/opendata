@@ -202,6 +202,37 @@
       </div>
     </div>
 
+    <div class="modal fade period-dialog" id="uploadResultDialog" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title mb-0">Upload Result</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted mb-2" id="uploadResultSummary">Processed.</p>
+            <div class="table-responsive">
+              <table class="table table-sm period-table align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th style="width:110px;">Template Row</th>
+                    <th style="width:140px;">Code</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="uploadUnmatchedRows">
+                  <tr><td colspan="3" class="text-muted">No unmatched rows.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn od-btn-primary" type="button" data-bs-dismiss="modal">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="assessment-nav-dock" id="navigatorDock">
       <div class="assessment-nav-panel" aria-hidden="true">
         <button class="assessment-nav-action assessment-nav-top" type="button" id="btnNavTop" title="Go to first filtered row">
@@ -489,6 +520,7 @@
   const params = new URLSearchParams(window.location.search);
   let navigatorModal = null;
   let uploadTemplateModal = null;
+  let uploadResultModal = null;
   let uploadTemplateFile = null;
   const pageState = {
     periodId: Number(params.get('periodid') || 0),
@@ -1033,9 +1065,8 @@
     pageState.editable = periodOpen;
 
     const modeText = periodOpen ? 'Open' : 'Completed';
-    const submitText = isSubmitted ? 'Submitted' : 'In-progress';
-    const totalRows = Number(pageState.detailMeta?.total_rows ?? pageState.detail?.length ?? 0);
-    meta.textContent = `Period ${pageState.period.year} | ${pageState.assessmentCountry.country_code} | ${modeText} | ${submitText} | Rows: ${totalRows}`;
+    const periodTitle = String(pageState.period.title || pageState.period.description || '-').trim() || '-';
+    meta.textContent = `${periodTitle} | Reference Year: ${pageState.period.year ?? '-'} | Status: ${modeText}`;
 
     if (periodOpen) {
       hint.className = 'period-hint mb-3';
@@ -1361,6 +1392,31 @@
     label.textContent = uploadTemplateFile ? uploadTemplateFile.name : 'No file selected.';
   }
 
+  function showUploadResultDialog(result) {
+    const summaryEl = document.getElementById('uploadResultSummary');
+    const tbody = document.getElementById('uploadUnmatchedRows');
+    const uploaded = Number(result?.uploaded ?? 0);
+    const matched = Number(result?.matched ?? 0);
+    const unmatched = Array.isArray(result?.unmatched) ? result.unmatched : [];
+    const skipped = Math.max(0, uploaded - matched);
+
+    summaryEl.textContent = `Processed template "${result?.sheetName || 'Input'}". Uploaded: ${uploaded}, matched: ${matched}, unmatched: ${skipped}.`;
+
+    if (!unmatched.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No unmatched rows.</td></tr>';
+    } else {
+      tbody.innerHTML = unmatched.map((row) => `
+        <tr>
+          <td>${row.source_row ? `#${esc(row.source_row)}` : '-'}</td>
+          <td>${esc(row.code || '-')}</td>
+          <td>${esc(row.reason || 'Unmatched')}</td>
+        </tr>
+      `).join('');
+    }
+
+    uploadResultModal.show();
+  }
+
   async function applyTemplateRows(file) {
     if (!file) throw new Error('Please select an Excel file first.');
     if (!window.XLSX) throw new Error('Excel parser not available.');
@@ -1383,6 +1439,7 @@
       const series = normalizeSeriesYears(cellText(xRow[5]));
       const parsed = {
         code,
+        source_row: i + 1,
         series,
         machine_readability: parseTemplateMetric(xRow[13], [-1, 0, 1]),
         proprietary: parseTemplateMetric(xRow[14], [-1, 0, 1]),
@@ -1430,6 +1487,10 @@
 
     try {
       const result = await applyTemplateRows(uploadTemplateFile);
+      result.uploaded = Array.isArray(result.parsedRows) ? result.parsedRows.length : 0;
+      result.matched = 0;
+      result.unmatched = [];
+
       if (pageState.assessmentCountry?.id) {
         const uploadResult = await odFetch('/api/trx/form/upload', {
           method: 'POST',
@@ -1440,15 +1501,14 @@
             rows: result.parsedRows,
           }),
         });
+        result.uploaded = Number(uploadResult?.data?.uploaded ?? result.uploaded);
         result.matched = Number(uploadResult?.data?.matched || 0);
-      } else {
-        result.matched = 0;
+        result.unmatched = Array.isArray(uploadResult?.data?.unmatched) ? uploadResult.data.unmatched : [];
       }
+
       uploadTemplateModal.hide();
       await loadForm();
-      const uploadedCount = Array.isArray(result.parsedRows) ? result.parsedRows.length : 0;
-      const skipped = Math.max(0, uploadedCount - Number(result.matched || 0));
-      odToast(`Template processed from sheet "${result.sheetName}". Uploaded: ${uploadedCount}, matched: ${result.matched}, skipped: ${skipped}.`);
+      showUploadResultDialog(result);
     } catch (err) {
       showError(err.message || 'Failed to process template.');
     } finally {
@@ -1685,6 +1745,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
     uploadTemplateModal = new bootstrap.Modal(document.getElementById('uploadTemplateDialog'));
+    uploadResultModal = new bootstrap.Modal(document.getElementById('uploadResultDialog'));
     initTooltips(document);
     const navigatorDock = document.getElementById('navigatorDock');
     const uploadDropzone = document.getElementById('uploadDropzone');

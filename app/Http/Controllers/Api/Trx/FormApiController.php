@@ -224,7 +224,13 @@ class FormApiController extends Controller
         $weightedOverall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
 
         return $this->ok([
-            'period' => ['id' => $period->id, 'year' => $period->year, 'active' => (bool) $period->active, 'description' => $period->description],
+            'period' => [
+                'id' => $period->id,
+                'title' => $period->title,
+                'year' => $period->year,
+                'active' => (bool) $period->active,
+                'description' => $period->description,
+            ],
             'assessment_country' => ['id' => $ac->id, 'country_code' => $ac->country_code, 'is_submitted' => (bool) $ac->is_submitted],
             'detail' => $detail,
             'detail_meta' => [
@@ -343,6 +349,7 @@ class FormApiController extends Controller
             'countryid' => 'required|integer',
             'rows' => 'required|array',
             'rows.*.code' => 'required|string|max:100',
+            'rows.*.source_row' => 'nullable|integer|min:1',
             'rows.*.series' => 'nullable|string|max:300',
             'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
             'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
@@ -386,16 +393,28 @@ class FormApiController extends Controller
             ->values();
 
         $matched = 0;
-        DB::transaction(function () use ($payload, $ac, $configRowByPrefix, $isAseanstatsStaff, $restrictedRowIds, &$matched) {
+        $unmatched = [];
+        DB::transaction(function () use ($payload, $ac, $configRowByPrefix, $isAseanstatsStaff, $restrictedRowIds, &$matched, &$unmatched) {
             foreach ($payload['rows'] as $r) {
                 $prefix = strtoupper(trim((string) ($r['code'] ?? '')));
+                $sourceRow = isset($r['source_row']) ? (int) $r['source_row'] : null;
                 if ($prefix === '' || !$configRowByPrefix->has($prefix)) {
+                    $unmatched[] = [
+                        'code' => $prefix,
+                        'source_row' => $sourceRow,
+                        'reason' => 'Code not mapped to active configuration rows.',
+                    ];
                     continue;
                 }
                 $rowConfig = $configRowByPrefix->get($prefix);
                 $rowId = (int) ($rowConfig['id'] ?? 0);
                 $isRestricted = (int) ($rowConfig['aseanstats_only'] ?? 0) === 1;
                 if ($isRestricted && !$isAseanstatsStaff) {
+                    $unmatched[] = [
+                        'code' => $prefix,
+                        'source_row' => $sourceRow,
+                        'reason' => 'Row is restricted to ASEANstats only.',
+                    ];
                     continue;
                 }
                 $series = trim((string) ($r['series'] ?? ''));
@@ -454,7 +473,9 @@ class FormApiController extends Controller
         AuditLogger::log($request, 'upload template', $ac->id);
 
         return $this->ok([
+            'uploaded' => count($payload['rows']),
             'matched' => $matched,
+            'unmatched' => $unmatched,
             'summary' => $summaries,
         ]);
     }
