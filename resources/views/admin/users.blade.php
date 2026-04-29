@@ -13,6 +13,16 @@
     </div>
 
     <div class="period-table-card">
+      <div class="period-table-toolbar users-filter-row">
+        <label class="users-filter-label" for="countryFilter">Country</label>
+        <div class="users-country-wrap">
+          <select class="form-select form-select-sm users-country-select" id="countryFilter">
+            <option value=""></option>
+          </select>
+        </div>
+        <label class="users-filter-label" for="searchInput">Search</label>
+        <input class="form-control form-control-sm users-search-input" id="searchInput" name="users_search_keyword" type="search" placeholder="name or email" value="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true">
+      </div>
       <div class="table-responsive">
         <table class="table period-table align-middle mb-0" id="tbl">
           <thead>
@@ -72,6 +82,74 @@
 
 @endsection
 
+@push('styles')
+<style>
+  .users-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: nowrap;
+  }
+
+  .users-filter-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #425066;
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .users-country-wrap {
+    position: relative;
+    min-width: 245px;
+  }
+
+  .users-country-wrap::after {
+    content: '\25BE';
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #24538f;
+    font-size: 0.72rem;
+    pointer-events: none;
+  }
+
+  .users-country-select {
+    appearance: none;
+    border: 1px solid #b9cee8;
+    background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+    color: #21334d;
+    font-weight: 600;
+    padding-right: 1.9rem;
+    border-radius: 0.5rem;
+  }
+
+  .users-country-select:focus {
+    border-color: #2b76e5;
+    box-shadow: 0 0 0 0.2rem rgba(43, 118, 229, 0.2);
+  }
+
+  .users-search-input {
+    min-width: 300px;
+    max-width: 420px;
+    border-color: #c7d3e2;
+  }
+
+  @media (max-width: 767.98px) {
+    .users-filter-row {
+      flex-wrap: wrap;
+    }
+
+    .users-country-wrap,
+    .users-search-input {
+      width: 100%;
+      max-width: none;
+    }
+  }
+</style>
+@endpush
+
 @push('scripts')
 <script>
 const tblBody = document.querySelector('#tbl tbody');
@@ -79,6 +157,8 @@ const mdl = new bootstrap.Modal(document.getElementById('mdl'));
 const mdlMessage = new bootstrap.Modal(document.getElementById('mdlMessage'));
 const flashStatus = @json(session('status'));
 const profileEditBase = @json(route('profile.edit'));
+const countryFilter = document.getElementById('countryFilter');
+const searchInput = document.getElementById('searchInput');
 const countries = [
   { code: '00', name: 'ASEAN Secretariat' },
   { code: 'BN', name: 'Brunei Darussalam' },
@@ -93,6 +173,12 @@ const countries = [
   { code: 'VN', name: 'Viet Nam' },
 ];
 let usersCache = [];
+let loadTimer = null;
+
+function clearSearchInput() {
+  if (!searchInput) return;
+  searchInput.value = '';
+}
 
 function showMessage(title, message){
   document.getElementById('msgTitle').textContent = title;
@@ -103,8 +189,15 @@ function showMessage(title, message){
 function initCountryOptions(){
   const select = document.getElementById('country_code');
   select.innerHTML = countries
-    .map((c) => `<option value="${c.code}">${c.code} ${c.name}</option>`)
+    .map((c) => `<option value="${c.code}">${c.name}</option>`)
     .join('');
+}
+
+function initCountryFilterOptions(){
+  countryFilter.innerHTML = [
+    '<option value=""></option>',
+    ...countries.map((c) => `<option value="${c.code}">${c.name}</option>`),
+  ].join('');
 }
 
 function countryName(code){
@@ -115,8 +208,25 @@ function countryName(code){
 async function load(){
   const j = await odFetch('/api/adm/users');
   usersCache = j.data || [];
+  applyClientFilters();
+}
+
+function applyClientFilters(){
+  const selectedCountry = String(countryFilter?.value || '').trim();
+  const keyword = String(searchInput?.value || '').trim().toLowerCase();
+
+  const filtered = usersCache.filter((row) => {
+    if (selectedCountry && String(row.country_code || '').toUpperCase() !== selectedCountry.toUpperCase()) {
+      return false;
+    }
+    if (!keyword) return true;
+    const personName = String(row.person_name || '').toLowerCase();
+    const email = String(row.email || '').toLowerCase();
+    return personName.includes(keyword) || email.includes(keyword);
+  });
+
   tblBody.innerHTML = '';
-  usersCache.forEach(r => {
+  filtered.forEach(r => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${r.email ?? ''}</td>
@@ -144,6 +254,11 @@ function openForm(row={}){
 }
 
 document.getElementById('btnAdd').addEventListener('click', () => openForm({}));
+countryFilter.addEventListener('change', applyClientFilters);
+searchInput.addEventListener('input', () => {
+  if (loadTimer) window.clearTimeout(loadTimer);
+  loadTimer = window.setTimeout(applyClientFilters, 300);
+});
 
 document.getElementById('btnSave').addEventListener('click', async ()=>{
   const id = document.getElementById('id').value || null;
@@ -161,13 +276,6 @@ document.getElementById('btnSave').addEventListener('click', async ()=>{
   if (!payload.country_code || !payload.person_name || !payload.email) {
     showMessage('Validation', 'Email, Country, dan Person Name wajib diisi.');
     return;
-  }
-  if (!id) {
-    const exists = usersCache.some((u) => String(u.email || '').toLowerCase() === payload.email.toLowerCase());
-    if (exists) {
-      showMessage('Email Sudah Terdaftar', 'Email sudah digunakan. Gunakan email lain atau edit user yang sudah ada.');
-      return;
-    }
   }
   if (!id && (!payload.password || payload.password.length < 8)) {
     showMessage('Validation', 'Password wajib diisi minimal 8 karakter untuk user baru.');
@@ -201,6 +309,11 @@ document.getElementById('btnSave').addEventListener('click', async ()=>{
 });
 
 initCountryOptions();
+initCountryFilterOptions();
+clearSearchInput();
+window.setTimeout(clearSearchInput, 0);
+window.setTimeout(clearSearchInput, 250);
+window.addEventListener('load', clearSearchInput, { once: true });
 load();
 if (flashStatus === 'user-deleted') {
   showMessage('Deleted', 'User berhasil dihapus.');

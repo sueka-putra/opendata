@@ -21,12 +21,16 @@
               <th style="width: 80px;">No</th>
               <th>Participant</th>
               <th style="width: 180px;">Status</th>
+              <th style="width: 120px;">Progress</th>
+              <th style="width: 170px;">Coverage Sub Score</th>
+              <th style="width: 170px;">Opennes Sub Score</th>
+              <th style="width: 140px;">Overall Score</th>
               <th style="width: 240px;">Last Modified</th>
               <th style="width: 120px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="tbCountries">
-            <tr><td colspan="5" class="text-muted">Loading...</td></tr>
+            <tr><td colspan="9" class="text-muted">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -46,11 +50,26 @@
     return d.toLocaleString();
   }
 
-  function statusBadge(submitted) {
+  function statusBadge(submitted, isPeriodOpen = true) {
     if (submitted === true || submitted === 1 || submitted === '1') {
       return '<span class="od-badge od-badge-submission-submitted">Submitted</span>';
     }
+    if (!isPeriodOpen) {
+      return '<span class="od-badge od-badge-submission-not-submitted">Not-Submitted</span>';
+    }
     return '<span class="od-badge od-badge-submission-progress">In-progress</span>';
+  }
+
+  function fmtPercent(value) {
+    const num = Number(value ?? 0);
+    if (Number.isNaN(num)) return '0%';
+    return `${num.toFixed(2)}%`;
+  }
+
+  function fmtRatio(value) {
+    const num = Number(value ?? 0);
+    if (Number.isNaN(num)) return '0.00';
+    return num.toFixed(2);
   }
 
   function renderPeriodMeta(period) {
@@ -69,7 +88,7 @@
   function renderCountries(countries) {
     const tbody = document.getElementById('tbCountries');
     if (!Array.isArray(countries) || countries.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No participants found for this period.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-muted">No participants found for this period.</td></tr>';
       return;
     }
 
@@ -80,7 +99,11 @@
       <tr>
         <td>${idx + 1}</td>
         <td class="fw-semibold">${row.country_name || row.country_code || '-'}</td>
-        <td>${statusBadge(row.is_submitted)}</td>
+        <td>${statusBadge(row.is_submitted, isOpen)}</td>
+        <td>${fmtPercent(row.progress)}</td>
+        <td>${fmtRatio(row.coverage_sub_score_ratio)}</td>
+        <td>${fmtRatio(row.opennes_sub_score_ratio)}</td>
+        <td>${fmtRatio(row.overall_score_ratio)}</td>
         <td class="text-muted small">${fmtDateTime(row.modified_date)}</td>
         <td class="text-end">
           <a class="btn btn-sm btn-outline-dark" href="/trx/form?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(row.country_code)}">${isOpen ? 'Open' : 'View'}</a>
@@ -91,7 +114,7 @@
 
   async function loadCountries() {
     const tbody = document.getElementById('tbCountries');
-    tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-muted">Loading...</td></tr>';
 
     try {
       const response = await odFetch(`/api/trx/countries/${periodId}`);
@@ -101,7 +124,7 @@
       renderCountries(payload.countries || []);
     } catch (err) {
       document.getElementById('periodMeta').textContent = 'Failed to load period data.';
-      tbody.innerHTML = `<tr><td colspan="5" class="text-danger">${err.message || 'Failed to load participants.'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="text-danger">${err.message || 'Failed to load participants.'}</td></tr>`;
     }
   }
 

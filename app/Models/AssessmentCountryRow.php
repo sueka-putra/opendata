@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class AssessmentCountryRow extends Model
 {
+    public const SERIES_MAX_LENGTH = 500;
+    public const URLS_MAX_LENGTH = 3000;
+    public const REMARKS_MAX_LENGTH = 3000;
+
     protected $table = 'od_trx_assessment_country_rows';
 
     public $timestamps = false;

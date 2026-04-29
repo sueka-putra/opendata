@@ -139,6 +139,11 @@
   color: #ffffff;
 }
 
+.od-badge-submission-not-submitted {
+  background: linear-gradient(135deg, #7f889a 0%, #b8bfcb 100%);
+  color: #ffffff;
+}
+
 .period-table .btn-outline-primary {
   border-color: #c6b6fa;
   color: var(--od-accent);
@@ -397,7 +402,7 @@
 
 .assessment-fab-nav {
   position: fixed;
-  top: 84px;
+  top: 70px;
   right: 20px;
   z-index: 1080;
   border: 0;

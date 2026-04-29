@@ -39,15 +39,15 @@ body.od-app {
 }
 
 .od-topbar-inner {
-  min-height: 68px;
-  padding: 0 16px;
+  min-height: 54px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .od-brand img {
-  height: 34px;
+  height: 28px;
   width: auto;
 }
 
@@ -55,9 +55,10 @@ body.od-app {
   border: 1px solid #c9d6e7;
   background: #f8fbff;
   color: #3a5d8a;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 0.86rem;
 }
 
 .od-shell {
@@ -146,6 +147,31 @@ body.od-app {
 .od-menu-link.active {
   background: linear-gradient(90deg, var(--od-primary), #4b80f0);
   color: #fff;
+}
+
+.od-menu-tooltip {
+  --bs-tooltip-bg: transparent;
+  --bs-tooltip-opacity: 1;
+}
+
+.od-menu-tooltip .tooltip-inner {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f8ff 100%);
+  color: #2d4f7d;
+  border: 1px solid #cfe0f8;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(34, 92, 177, 0.18);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.42rem 0.58rem;
+}
+
+.od-menu-tooltip.bs-tooltip-end .tooltip-arrow::before {
+  border-right-color: #e9f2ff;
+}
+
+.od-menu-tooltip.bs-tooltip-start .tooltip-arrow::before {
+  border-left-color: #e9f2ff;
 }
 
 .od-menu-form {

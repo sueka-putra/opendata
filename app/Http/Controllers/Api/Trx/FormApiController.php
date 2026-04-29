@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\Trx;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\AssessmentCountry;
+use App\Models\AssessmentCountryRow;
 use App\Models\AssessmentPeriod;
 use App\Models\AssessmentSummary;
+use App\Models\Country;
 use App\Services\AuditLogger;
 use App\Services\ScoreService;
 use Illuminate\Http\Request;
@@ -67,6 +69,13 @@ class FormApiController extends Controller
 
         $period = AssessmentPeriod::findOrFail($periodId);
         $ac = AssessmentCountry::where('period_id', $periodId)->where('country_code', $countryCode)->firstOrFail();
+        $adminCode = (string) config('opendata.admin_country_code', '00');
+        $countryName = Country::query()
+            ->where('code', (string) $ac->country_code)
+            ->value('name');
+        if (!$countryName && (string) $ac->country_code === $adminCode) {
+            $countryName = 'ASEANstats';
+        }
 
         // Access control
         if (!$request->user()->isAdmin() && $request->user()->country_code !== $countryCode) {
@@ -101,6 +110,7 @@ class FormApiController extends Controller
                 'cfg.category_id',
                 'cfg.indicator_id',
                 'cfg.sub_indicator_id',
+                $hasAseanstatsOnlyCol ? 'cfg.aseanstats_only' : DB::raw('0 as aseanstats_only'),
                 DB::raw("s.{$sectionCol} as section"),
                 DB::raw("c.{$categoryCol} as category"),
                 DB::raw("i.{$indicatorCol} as indicator"),
@@ -118,17 +128,19 @@ class FormApiController extends Controller
             ->where('ac.country_code', $countryCode)
             ->where('cr.assessment_country_id', $ac->id);
 
-        if ($hasAseanstatsOnlyCol && !$isAseanstatsStaff) {
-            $detailQuery->where(function ($q) {
-                $q->whereNull('cfg.aseanstats_only')
-                    ->orWhere('cfg.aseanstats_only', 0);
-            });
-        }
-
         $detail = $detailQuery
             ->orderBy('cfg.seq_no')
             ->get()
-            ->map(function ($r) use ($period) {
+            ->map(function ($r) use ($period, $isAseanstatsStaff) {
+                $isRestricted = ((int) ($r->aseanstats_only ?? 0) === 1);
+                if ($isRestricted && !$isAseanstatsStaff) {
+                    $r->series = 'NA';
+                    $r->machine_readability = -1;
+                    $r->proprietary = -1;
+                    $r->download_options = -1;
+                    $r->metadata = -1;
+                    $r->term_of_use = -1;
+                }
                 $cov = ScoreService::computeRowCoverage((string) $r->series, (int) $period->year);
                 $o = ScoreService::computeRowOpenness((array) $r);
                 return array_merge((array) $r, [
@@ -231,7 +243,12 @@ class FormApiController extends Controller
                 'active' => (bool) $period->active,
                 'description' => $period->description,
             ],
-            'assessment_country' => ['id' => $ac->id, 'country_code' => $ac->country_code, 'is_submitted' => (bool) $ac->is_submitted],
+            'assessment_country' => [
+                'id' => $ac->id,
+                'country_code' => $ac->country_code,
+                'country_name' => (string) ($countryName ?? ''),
+                'is_submitted' => (bool) $ac->is_submitted,
+            ],
             'detail' => $detail,
             'detail_meta' => [
                 'total_rows' => $detail->count(),
@@ -244,6 +261,9 @@ class FormApiController extends Controller
                 'opennes_sub_score_ratio' => round($weightedOpenness, 6),
                 'overall_score_ratio' => round($weightedOverall, 6),
             ],
+            'viewer' => [
+                'is_aseanstats_staff' => $isAseanstatsStaff,
+            ],
         ]);
     }
 
@@ -254,14 +274,14 @@ class FormApiController extends Controller
             'countryid' => 'required|integer',
             'rows' => 'required|array',
             'rows.*.row_id' => 'required|integer',
-            'rows.*.series' => 'nullable|string|max:300',
+            'rows.*.series' => 'nullable|string|max:'.AssessmentCountryRow::SERIES_MAX_LENGTH,
             'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
             'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
             'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
-            'rows.*.urls' => 'nullable|string|max:2000',
-            'rows.*.remarks' => 'nullable|string|max:2000',
+            'rows.*.urls' => 'nullable|string|max:'.AssessmentCountryRow::URLS_MAX_LENGTH,
+            'rows.*.remarks' => 'nullable|string|max:'.AssessmentCountryRow::REMARKS_MAX_LENGTH,
         ]);
 
         $ac = AssessmentCountry::where('id', $payload['countryid'])
@@ -280,6 +300,7 @@ class FormApiController extends Controller
 
         $schema = DB::getSchemaBuilder();
         $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
+        $restrictedRequestedRowIds = collect();
         if ($schema->hasColumn('od_mst_configuration_rows', 'aseanstats_only') && !$isAseanstatsStaff) {
             $requestedRowIds = collect($payload['rows'] ?? [])
                 ->pluck('row_id')
@@ -287,25 +308,31 @@ class FormApiController extends Controller
                 ->map(fn ($id) => (int) $id)
                 ->values();
             if ($requestedRowIds->isNotEmpty()) {
-                $hasRestrictedRows = DB::table('od_mst_configuration_rows')
+                $restrictedRequestedRowIds = DB::table('od_mst_configuration_rows')
                     ->where('config_id', (int) $period->config_id)
                     ->whereIn('id', $requestedRowIds)
                     ->where('aseanstats_only', 1)
-                    ->exists();
-                if ($hasRestrictedRows) {
-                    return $this->fail('Some rows are restricted to ASEANstats staff.', 403);
-                }
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values();
             }
         }
 
-        DB::transaction(function () use ($payload, $ac) {
+        DB::transaction(function () use ($payload, $ac, $isAseanstatsStaff, $restrictedRequestedRowIds) {
             foreach ($payload['rows'] as $r) {
-                $isSeriesNa = strtoupper(trim((string) ($r['series'] ?? ''))) === 'NA';
+                $rowId = (int) ($r['row_id'] ?? 0);
+                $isRestricted = !$isAseanstatsStaff && $restrictedRequestedRowIds->contains($rowId);
+                $series = $isRestricted
+                    ? 'NA'
+                    : trim((string) ($r['series'] ?? ''));
+                $isSeriesNa = strtoupper($series) === 'NA';
                 $machineReadability = array_key_exists('machine_readability', $r) ? $r['machine_readability'] : null;
                 $proprietary = array_key_exists('proprietary', $r) ? $r['proprietary'] : null;
                 $downloadOptions = array_key_exists('download_options', $r) ? $r['download_options'] : null;
                 $metadata = array_key_exists('metadata', $r) ? $r['metadata'] : null;
                 $termOfUse = array_key_exists('term_of_use', $r) ? $r['term_of_use'] : null;
+                $urls = $isRestricted ? null : ($r['urls'] ?? null);
+                $remarks = $isRestricted ? null : ($r['remarks'] ?? null);
 
                 if ($isSeriesNa) {
                     $machineReadability = -1;
@@ -317,16 +344,16 @@ class FormApiController extends Controller
 
                 DB::table('od_trx_assessment_country_rows')
                     ->where('assessment_country_id', $ac->id)
-                    ->where('row_id', $r['row_id'])
+                    ->where('row_id', $rowId)
                     ->update([
-                        'series' => $r['series'] ?? '',
+                        'series' => $series,
                         'machine_readability' => $machineReadability,
                         'proprietary' => $proprietary,
                         'download_options' => $downloadOptions,
                         'metadata' => $metadata,
                         'term_of_use' => $termOfUse,
-                        'urls' => $r['urls'] ?? null,
-                        'remarks' => $r['remarks'] ?? null,
+                        'urls' => $urls,
+                        'remarks' => $remarks,
                     ]);
             }
 
@@ -350,14 +377,14 @@ class FormApiController extends Controller
             'rows' => 'required|array',
             'rows.*.code' => 'required|string|max:100',
             'rows.*.source_row' => 'nullable|integer|min:1',
-            'rows.*.series' => 'nullable|string|max:300',
+            'rows.*.series' => 'nullable|string|max:'.AssessmentCountryRow::SERIES_MAX_LENGTH,
             'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
             'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
             'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
-            'rows.*.urls' => 'nullable|string|max:2000',
-            'rows.*.remarks' => 'nullable|string|max:2000',
+            'rows.*.urls' => 'nullable|string|max:'.AssessmentCountryRow::URLS_MAX_LENGTH,
+            'rows.*.remarks' => 'nullable|string|max:'.AssessmentCountryRow::REMARKS_MAX_LENGTH,
         ]);
 
         $ac = AssessmentCountry::where('id', $payload['countryid'])
@@ -409,15 +436,9 @@ class FormApiController extends Controller
                 $rowConfig = $configRowByPrefix->get($prefix);
                 $rowId = (int) ($rowConfig['id'] ?? 0);
                 $isRestricted = (int) ($rowConfig['aseanstats_only'] ?? 0) === 1;
-                if ($isRestricted && !$isAseanstatsStaff) {
-                    $unmatched[] = [
-                        'code' => $prefix,
-                        'source_row' => $sourceRow,
-                        'reason' => 'Row is restricted to ASEANstats only.',
-                    ];
-                    continue;
-                }
-                $series = trim((string) ($r['series'] ?? ''));
+                $series = $isRestricted && !$isAseanstatsStaff
+                    ? 'NA'
+                    : trim((string) ($r['series'] ?? ''));
                 $isSeriesNa = strtoupper($series) === 'NA';
 
                 $machineReadability = $this->sanitizeTemplateScore($r['machine_readability'] ?? null, [-1.0, 0.0, 1.0]);
@@ -425,6 +446,8 @@ class FormApiController extends Controller
                 $downloadOptions = $this->sanitizeTemplateScore($r['download_options'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
                 $metadata = $this->sanitizeTemplateScore($r['metadata'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
                 $termOfUse = $this->sanitizeTemplateScore($r['term_of_use'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $urls = $isRestricted && !$isAseanstatsStaff ? null : ($r['urls'] ?? null);
+                $remarks = $isRestricted && !$isAseanstatsStaff ? null : ($r['remarks'] ?? null);
 
                 if ($isSeriesNa) {
                     $machineReadability = -1;
@@ -444,8 +467,8 @@ class FormApiController extends Controller
                         'download_options' => $downloadOptions,
                         'metadata' => $metadata,
                         'term_of_use' => $termOfUse,
-                        'urls' => $r['urls'] ?? null,
-                        'remarks' => $r['remarks'] ?? null,
+                        'urls' => $urls,
+                        'remarks' => $remarks,
                     ]);
                 $matched++;
             }
@@ -455,12 +478,12 @@ class FormApiController extends Controller
                     ->where('assessment_country_id', $ac->id)
                     ->whereIn('row_id', $restrictedRowIds->all())
                     ->update([
-                        'series' => '',
-                        'machine_readability' => 0,
-                        'proprietary' => 0,
-                        'download_options' => 0,
-                        'metadata' => 0,
-                        'term_of_use' => 0,
+                        'series' => 'NA',
+                        'machine_readability' => -1,
+                        'proprietary' => -1,
+                        'download_options' => -1,
+                        'metadata' => -1,
+                        'term_of_use' => -1,
                         'urls' => null,
                         'remarks' => null,
                     ]);

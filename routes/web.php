@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Trx\ActiveAssessmentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +34,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Transaction pages
     Route::prefix('trx')->group(function () {
+        Route::get('/', fn () => redirect()->route('trx.active'))->name('trx.index');
+        Route::get('/active', [ActiveAssessmentController::class, 'index'])->name('trx.active');
+
         Route::middleware('admin.only')->group(function () {
             Route::view('/periods', 'trx.periods')->name('trx.periods');
             Route::view('/period/{periodId}/countries', 'trx.period_countries')->name('trx.period_countries');

@@ -459,17 +459,59 @@
     }
   }
 
+  async function getUnsubmittedParticipants(periodId) {
+    const response = await odFetch(`/api/trx/countries/${periodId}`);
+    const countries = Array.isArray(response?.data?.countries) ? response.data.countries : [];
+    return countries
+      .filter((row) => !boolFlag(row?.is_submitted))
+      .map((row) => String(row?.country_name || row?.country_code || 'Unknown').trim())
+      .filter((name) => name !== '');
+  }
+
   async function submitClosePeriod() {
     if (!periodState.selectedPeriod) return;
     setDialogError('');
 
     const periodId = periodState.selectedPeriod.id;
-    const confirmed = confirm(`Close assessment period ${periodState.selectedPeriod.year}?`);
-    if (!confirmed) return;
+    const btn = document.getElementById('btnDialogSubmitClose');
+    btn.disabled = true;
+
+    let pendingParticipants = [];
+    try {
+      pendingParticipants = await getUnsubmittedParticipants(periodId);
+    } catch (err) {
+      setDialogError(err.message || 'Failed to check participant submission status.');
+      btn.disabled = false;
+      return;
+    }
+
+    const yearLabel = periodState.selectedPeriod.year ?? '-';
+    let confirmationMessage = [
+      `Close assessment period ${yearLabel}?`,
+      '',
+      'This action will mark the period as completed and the assessment form will become read-only.',
+    ].join('\n');
+    if (pendingParticipants.length > 0) {
+      const bulletList = pendingParticipants.map((name) => `- ${name}`).join('\n');
+      confirmationMessage += [
+        '',
+        '',
+        'The following AMS not submitted the assessment yet:',
+        bulletList,
+      ].join('\n');
+    }
+
+    const confirmed = await odConfirm(
+      confirmationMessage,
+      'Close Assessment Period',
+      { boldFirstLine: true }
+    );
+    if (!confirmed) {
+      btn.disabled = false;
+      return;
+    }
 
     try {
-      const btn = document.getElementById('btnDialogSubmitClose');
-      btn.disabled = true;
       await odFetch(`/api/trx/period/${periodId}`, { method: 'PUT' });
       periodDialog.hide();
       await loadPeriods();

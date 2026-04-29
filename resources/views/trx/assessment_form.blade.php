@@ -3,6 +3,21 @@
 @section('content')
 @php
   $uploadTemplateUrl = '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx';
+  $backUrl = route('dashboard');
+  $referer = (string) request()->headers->get('referer', '');
+  if ($referer !== '') {
+    $parts = parse_url($referer);
+    $host = isset($parts['host']) ? (string) $parts['host'] : '';
+    $path = isset($parts['path']) ? (string) $parts['path'] : '';
+    $query = isset($parts['query']) ? ('?' . $parts['query']) : '';
+    $isSameHost = $host !== '' && strcasecmp($host, request()->getHost()) === 0;
+    $isRelative = $host === '' && str_starts_with($referer, '/');
+    $isSafePath = $path !== '' && str_starts_with($path, '/') && !str_starts_with($path, '//');
+    $isNotFormPath = $path !== request()->getPathInfo();
+    if (($isSameHost || $isRelative) && $isSafePath && $isNotFormPath) {
+      $backUrl = $path . $query;
+    }
+  }
   $templateCandidates = [
     public_path('template/ACSS Open Data Assessment Tools.xlsx') => '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
     public_path('templates/ACSS Open Data Assessment Tools.xlsx') => '/templates/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
@@ -23,18 +38,17 @@
         <div class="period-subtitle" id="formMeta">Loading assessment...</div>
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <a class="btn od-btn-outline" href="{{ route('dashboard') }}">Back to Dashboard</a>
-        <button class="btn od-btn-outline" type="button" id="btnRefreshForm">Refresh</button>
+        <a class="btn od-btn-outline assessment-form-action-btn" id="btnBackForm" href="{{ route('dashboard') }}">Back</a>
         <div class="dropdown">
-          <button class="btn od-btn-primary dropdown-toggle" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Upload</button>
+          <button class="btn od-btn-primary dropdown-toggle assessment-form-action-btn" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Upload</button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btnUploadMenu">
             <li><a class="dropdown-item" id="btnDownloadTemplate" href="{{ $uploadTemplateUrl }}" download>Download Template</a></li>
             <li><button class="dropdown-item" type="button" id="btnUploadTemplateOpen">Upload Template</button></li>
           </ul>
         </div>
-        <button class="btn od-btn-primary" type="button" id="btnExportForm">Export</button>
-        <button class="btn od-btn-primary" type="button" id="btnSaveForm">Save</button>
-        <button class="btn od-btn-primary" type="button" id="btnSubmitForm">Submit</button>
+        <button class="btn od-btn-primary assessment-form-action-btn" type="button" id="btnExportForm">Export</button>
+        <button class="btn od-btn-primary assessment-form-action-btn" type="button" id="btnSaveForm">Save</button>
+        <button class="btn od-btn-primary assessment-form-action-btn" type="button" id="btnSubmitForm">Submit</button>
       </div>
     </div>
 
@@ -89,7 +103,7 @@
               <input class="form-check-input" type="checkbox" id="entryUnfinishedOnly">
               <label class="form-check-label small text-muted" for="entryUnfinishedOnly">Unfinished only (coverage/openness/URL)</label>
               </div>
-              <span class="small text-muted" id="entryFilterInfo">Rows: 0</span>
+              <span class="small text-muted" id="entryFilterInfo" style="display: none;">Rows: 0</span>
             </div>
           </div>
           <div class="table-responsive">
@@ -99,7 +113,7 @@
                   <th style="width:420px;">Dimension</th>
                   <th style="width:360px;">Coverage</th>
                   <th style="width:360px;">Openness</th>
-                  <th style="min-width:240px; max-width:360px;">Evidence & Notes</th>
+                  <th style="width:300px; max-width:350px;">Evidence & Notes</th>
                 </tr>
               </thead>
               <tbody id="detailRows">
@@ -114,7 +128,7 @@
         <div class="period-table-card mb-3">
           <div class="period-table-toolbar d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <strong class="assessment-toolbar-title">Section Summary</strong>
-            <span class="text-muted small">Computed in real time from current form values.</span>
+            <span class="text-muted small">&nbsp;</span>
           </div>
           <div class="table-responsive">
             <table class="table period-table align-middle mb-0 assessment-summary-table">
@@ -203,7 +217,7 @@
     </div>
 
     <div class="modal fade period-dialog" id="uploadResultDialog" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title mb-0">Upload Result</h5>
@@ -211,7 +225,7 @@
           </div>
           <div class="modal-body">
             <p class="small text-muted mb-2" id="uploadResultSummary">Processed.</p>
-            <div class="table-responsive">
+            <div class="table-responsive" id="uploadUnmatchedWrap">
               <table class="table table-sm period-table align-middle mb-0">
                 <thead>
                   <tr>
@@ -228,6 +242,29 @@
           </div>
           <div class="modal-footer">
             <button class="btn od-btn-primary" type="button" data-bs-dismiss="modal">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade period-dialog assessment-help-wizard-modal" id="helpWizardDialog" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title mb-0">Assessment Form Help Wizard</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="small text-muted mb-2" id="helpWizardStepMeta">Step 1 of 1</div>
+            <h6 class="mb-2" id="helpWizardStepTitle">Welcome</h6>
+            <p class="mb-2" id="helpWizardStepDescription">This wizard guides you through the main actions in this page.</p>
+            <div class="assessment-help-hint-box small mb-0" id="helpWizardTargetHint">
+              Focus area will be highlighted on the page.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn od-btn-outline" type="button" id="btnHelpWizardPrev">Previous</button>
+            <button class="btn od-btn-primary" type="button" id="btnHelpWizardNext">Next</button>
           </div>
         </div>
       </div>
@@ -255,6 +292,13 @@
         <span class="assessment-fab-label">Navigator</span>
       </button>
     </div>
+
+    <button class="assessment-fab-help" type="button" id="btnHelpWizard" aria-label="Open help wizard" title="Help">
+      <span class="assessment-fab-icon" aria-hidden="true">
+        <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+      </span>
+      <span class="assessment-fab-label">Help</span>
+    </button>
   </div>
 </div>
 @endsection
@@ -263,6 +307,12 @@
 <style>
   .assessment-summary-table {
     --summary-divider-color: rgba(44, 96, 167, 0.35);
+  }
+
+  .assessment-form-action-btn {
+    width: 104px;
+    min-width: 104px;
+    white-space: nowrap;
   }
 
   .assessment-summary-table .summary-vr {
@@ -325,13 +375,23 @@
 
   .assessment-metric strong {
     font-size: 0.78rem;
-    color: #1f314f;
+    color: #000000;
     white-space: nowrap;
   }
 
   .assessment-metric.assessment-metric-final {
-    background: #eef5ff;
+    background: #dbe9fb;
     border-color: #c9d9f1;
+  }
+
+  .assessment-metric.assessment-metric-final span {
+    font-size: 0.9rem;
+    color: #334a6b;
+  }
+
+  .assessment-metric.assessment-metric-final strong {
+    font-size: 0.9rem;
+    color: #172a45;
   }
 
   #tblNavigator tbody tr.navigator-row-complete td {
@@ -363,7 +423,7 @@
   .assessment-nav-dock {
     position: fixed;
     right: 1rem;
-    bottom: 1rem;
+    bottom: 4rem;
     z-index: 1050;
     display: inline-flex;
     flex-direction: column;
@@ -472,6 +532,47 @@
     font-size: 0.8rem;
   }
 
+  .assessment-fab-help {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1049;
+    min-width: 116px;
+    border: 1px solid #2b76e5;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #2b76e5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 14px;
+    box-shadow: 0 8px 20px rgba(16, 73, 160, 0.18);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .assessment-fab-help:hover,
+  .assessment-fab-help:focus-visible {
+    background: #2b76e5;
+    color: #ffffff;
+    border-color: #2b76e5;
+    transform: translateY(-1px);
+  }
+
+  .assessment-fab-help .assessment-fab-icon {
+    width: auto;
+    height: auto;
+    font-size: 1rem;
+  }
+
+  .assessment-fab-help .assessment-fab-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
   .assessment-upload-dropzone {
     border: 1px dashed #9cb6d9;
     border-radius: 12px;
@@ -494,10 +595,110 @@
     margin-bottom: 0.5rem;
   }
 
+  .assessment-help-wizard-modal {
+    pointer-events: none;
+    z-index: 3000 !important;
+  }
+
+  .assessment-help-wizard-modal .modal-dialog {
+    margin: 0;
+    position: fixed;
+    top: 0.9rem;
+    right: 1rem;
+    width: min(420px, calc(100vw - 1.2rem));
+    max-width: min(420px, calc(100vw - 1.2rem));
+    pointer-events: auto;
+    transform: none !important;
+    z-index: 3001;
+  }
+
+  .assessment-help-wizard-modal .modal-content {
+    border: 1px solid #b7cae5;
+    border-radius: 8px;
+    box-shadow: none;
+    background: #f8fbff;
+  }
+
+  .assessment-help-wizard-modal .modal-header {
+    border-bottom: 1px solid #cfdbeb;
+    background: #ecf3fd;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+
+  .assessment-help-wizard-modal .modal-title {
+    color: #1e3f67;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .assessment-help-wizard-modal .modal-body {
+    padding-top: 0.85rem;
+    padding-bottom: 0.8rem;
+  }
+
+  .assessment-help-hint-box {
+    border: 1px solid #c7d8ee;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #39557a;
+    padding: 0.42rem 0.52rem;
+    line-height: 1.35;
+  }
+
+  .assessment-help-wizard-modal .modal-footer {
+    border-top: 1px solid #cfdbeb;
+    background: #f4f8ff;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding-top: 0.62rem;
+    padding-bottom: 0.62rem;
+  }
+
+  .assessment-wizard-highlight {
+    position: relative;
+    z-index: 1061;
+    outline: 3px solid rgba(43, 118, 229, 0.78);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+    border-radius: 0.4rem;
+    animation: assessment-wizard-pulse 1200ms ease-in-out infinite;
+  }
+
+  @keyframes assessment-wizard-pulse {
+    0% {
+      outline-color: rgba(43, 118, 229, 0.78);
+      box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+    }
+    50% {
+      outline-color: rgba(43, 118, 229, 0.92);
+      box-shadow: 0 0 0 11px rgba(43, 118, 229, 0.11);
+    }
+    100% {
+      outline-color: rgba(43, 118, 229, 0.78);
+      box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+    }
+  }
+
   @media (max-width: 991.98px) {
+    .assessment-help-wizard-modal .modal-dialog {
+      right: 0.6rem;
+      top: 0.6rem;
+      width: calc(100vw - 1.2rem);
+      max-width: calc(100vw - 1.2rem);
+    }
+
     .assessment-nav-dock {
       right: 0.75rem;
+      bottom: 4.6rem;
+    }
+
+    .assessment-fab-help {
+      right: 0.75rem;
       bottom: 0.75rem;
+      min-width: 110px;
+      padding: 8px 12px;
     }
 
     .assessment-nav-dock .assessment-fab-label {
@@ -521,8 +722,15 @@
   let navigatorModal = null;
   let uploadTemplateModal = null;
   let uploadResultModal = null;
+  let helpWizardModal = null;
   let uploadTemplateFile = null;
+  const TEMPLATE_TEXT_MAX_LENGTH = 3000;
+  const HELP_WIZARD_STORAGE_KEY = 'od.trx.form.help_wizard_seen.v1';
+  const helpWizardState = {
+    stepIndex: 0,
+  };
   const pageState = {
+    backUrl: @json($backUrl),
     periodId: Number(params.get('periodid') || 0),
     countryCode: String(params.get('country_code') || '').trim(),
     period: null,
@@ -533,6 +741,7 @@
     summaryLocked: {},
     weightedScore: null,
     editable: false,
+    isAseanstatsStaff: false,
     filters: {
       sectionId: '',
       categoryId: '',
@@ -549,6 +758,64 @@
     urls: 'Provide URL(s) for the assessed dataset(s), aligned with the selected indicator/disaggregation.',
     remarks: 'Add supporting notes, clarifications, or context for the values entered in this row.',
   };
+  const helpWizardSteps = [
+    {
+      title: 'Header & Period Context',
+      description: 'Check this area first to confirm period, reference year, form mode (editable/read-only), and selected country.',
+      selector: '#formMeta',
+      tab: 'entry',
+      hint: 'Always verify this context before entering data.',
+    },
+    {
+      title: 'Upload/Export Tools',
+      description: 'Use Upload menu to download/upload template, and use Export to download current form values.',
+      selector: '#btnUploadMenu',
+      tab: 'entry',
+      hint: 'Template upload can overwrite values currently displayed on screen.',
+    },
+    {
+      title: 'Entry Filters',
+      description: 'Use Section and Category filters to narrow the row list. Changing Section resets Category to keep filters consistent.',
+      selector: '.assessment-entry-filters',
+      tab: 'entry',
+      hint: 'Start from Section, then drill down with Category.',
+    },
+    {
+      title: 'Unfinished-only View',
+      description: 'Turn on this checkbox to focus only on rows that are not fully complete yet.',
+      selector: '#entryUnfinishedOnly',
+      tab: 'entry',
+      hint: 'Useful for follow-up before save or submit.',
+    },
+    {
+      title: 'Assessment Entry Table',
+      description: 'Fill Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
+      selector: '.assessment-table',
+      tab: 'entry',
+      hint: 'Rows are scored automatically and summary updates in real time.',
+    },
+    {
+      title: 'Row Navigator',
+      description: 'Use Navigator to jump quickly to top, bottom, or a specific row from the Go To dialog.',
+      selector: '#btnNavMain',
+      tab: 'entry',
+      hint: 'Best for large forms with many rows.',
+    },
+    {
+      title: 'Summary Tab',
+      description: 'Open Summary tab to review progress and weighted scores by section before final submission.',
+      selector: '#summaryRows',
+      tab: 'summary',
+      hint: 'Use this as validation checkpoint after data entry.',
+    },
+    {
+      title: 'Save vs Submit',
+      description: 'Save stores draft changes. Submit marks the country assessment as submitted for the current period.',
+      selector: '#btnSubmitForm',
+      tab: 'entry',
+      hint: 'Submit after all mandatory rows and evidence links are complete.',
+    },
+  ];
 
   function esc(value) {
     return String(value ?? '')
@@ -589,8 +856,149 @@
     });
   }
 
+  function clearHelpWizardHighlight() {
+    document.querySelectorAll('.assessment-wizard-highlight').forEach((el) => {
+      el.classList.remove('assessment-wizard-highlight');
+    });
+  }
+
+  function activateAssessmentTab(tabName) {
+    const tabId = tabName === 'summary' ? 'summary-tab' : 'entry-tab';
+    const tabEl = document.getElementById(tabId);
+    if (!tabEl) return;
+    bootstrap.Tab.getOrCreateInstance(tabEl).show();
+  }
+
+  function resolveHelpWizardTarget(step) {
+    if (!step?.selector) return null;
+    const target = document.querySelector(step.selector);
+    if (!target) return null;
+
+    if (step.selector === '.assessment-table') {
+      const detailRows = [...document.querySelectorAll('#detailRows tr[data-row-id]')];
+      if (detailRows.length > 0) {
+        const visibleRow = detailRows.find((row) => {
+          const rect = row.getBoundingClientRect();
+          return rect.bottom > 100 && rect.top < (window.innerHeight - 120);
+        });
+        return visibleRow || detailRows[0];
+      }
+    }
+
+    return target;
+  }
+
+  function scrollHelpWizardTargetIntoView(target) {
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const topMargin = 90;
+    const bottomMargin = 140;
+    const viewportTop = topMargin;
+    const viewportBottom = window.innerHeight - bottomMargin;
+    let deltaY = 0;
+
+    if (rect.top < viewportTop) {
+      deltaY = rect.top - viewportTop;
+    } else if (rect.bottom > viewportBottom) {
+      deltaY = rect.bottom - viewportBottom;
+    }
+
+    if (Math.abs(deltaY) > 1) {
+      window.scrollBy({ top: deltaY, behavior: 'smooth' });
+    }
+  }
+
+  function releaseHelpWizardBodyLock() {
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+
+  function renderHelpWizardStep() {
+    if (!helpWizardModal) return;
+    if (!helpWizardSteps.length) return;
+
+    const maxIndex = helpWizardSteps.length - 1;
+    const safeIndex = Math.min(Math.max(Number(helpWizardState.stepIndex) || 0, 0), maxIndex);
+    helpWizardState.stepIndex = safeIndex;
+
+    const step = helpWizardSteps[safeIndex];
+    activateAssessmentTab(step.tab || 'entry');
+
+    const stepMetaEl = document.getElementById('helpWizardStepMeta');
+    const titleEl = document.getElementById('helpWizardStepTitle');
+    const descEl = document.getElementById('helpWizardStepDescription');
+    const hintEl = document.getElementById('helpWizardTargetHint');
+    const prevBtn = document.getElementById('btnHelpWizardPrev');
+    const nextBtn = document.getElementById('btnHelpWizardNext');
+
+    stepMetaEl.textContent = `Step ${safeIndex + 1} of ${helpWizardSteps.length}`;
+    titleEl.textContent = step.title || 'Help';
+    descEl.textContent = step.description || '';
+    hintEl.textContent = step.hint || 'Focus area will be highlighted on the page.';
+    prevBtn.disabled = safeIndex === 0;
+    nextBtn.textContent = safeIndex === maxIndex ? 'Finish' : 'Next';
+
+    clearHelpWizardHighlight();
+
+    window.setTimeout(() => {
+      const target = resolveHelpWizardTarget(step);
+      if (!target) {
+        hintEl.textContent = 'Target area not available yet in current state.';
+        return;
+      }
+      target.classList.add('assessment-wizard-highlight');
+      scrollHelpWizardTargetIntoView(target);
+    }, 180);
+  }
+
+  function openHelpWizard(startIndex = 0) {
+    if (!helpWizardModal) return;
+    helpWizardState.stepIndex = Number(startIndex) || 0;
+    const dialogEl = document.getElementById('helpWizardDialog');
+    if (dialogEl?.classList.contains('show')) {
+      renderHelpWizardStep();
+      return;
+    }
+    helpWizardModal.show();
+  }
+
+  function maybeAutoOpenHelpWizard() {
+    if (!helpWizardModal) return;
+    if (!pageState.periodId) return;
+
+    let shouldOpen = false;
+    try {
+      shouldOpen = localStorage.getItem(HELP_WIZARD_STORAGE_KEY) !== '1';
+      if (shouldOpen) {
+        localStorage.setItem(HELP_WIZARD_STORAGE_KEY, '1');
+      }
+    } catch (error) {
+      shouldOpen = false;
+    }
+
+    if (!shouldOpen) return;
+    window.setTimeout(() => {
+      openHelpWizard(0);
+    }, 600);
+  }
+
   function boolFlag(v) {
     return v === true || v === 1 || v === '1';
+  }
+
+  function isAseanstatsOnlyLockedRow(row) {
+    return boolFlag(row?.aseanstats_only) && !pageState.isAseanstatsStaff;
+  }
+
+  function applyAseanstatsOnlyDefaults(row) {
+    if (!isAseanstatsOnlyLockedRow(row)) return;
+    row.series = 'NA';
+    row.machine_readability = -1;
+    row.proprietary = -1;
+    row.download_options = -1;
+    row.metadata = -1;
+    row.term_of_use = -1;
   }
 
   function parseMetric(raw, fallback = null) {
@@ -734,6 +1142,7 @@
     const referenceYear = Number(pageState.period?.year) || new Date().getFullYear();
 
     detailRows.forEach((row) => {
+      applyAseanstatsOnlyDefaults(row);
       applySeriesNaToOpenness(row);
       const cov = computeCoverageFromSeries(row.series, referenceYear);
       row.count_all = cov.count_all;
@@ -1046,15 +1455,21 @@
     const meta = document.getElementById('formMeta');
     const hint = document.getElementById('formHint');
     const uploadBtn = document.getElementById('btnUploadMenu');
+    const uploadWrap = uploadBtn?.closest('.dropdown');
     const exportBtn = document.getElementById('btnExportForm');
     const saveBtn = document.getElementById('btnSaveForm');
     const submitBtn = document.getElementById('btnSubmitForm');
+    const canExport = pageState.isAseanstatsStaff;
 
     if (!pageState.period || !pageState.assessmentCountry) {
       meta.textContent = 'Assessment information unavailable.';
       hint.style.display = 'none';
+      if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
+      exportBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = true;
+      saveBtn.style.display = 'none';
+      submitBtn.style.display = 'none';
       saveBtn.disabled = true;
       submitBtn.disabled = true;
       return;
@@ -1062,29 +1477,38 @@
 
     const periodOpen = boolFlag(pageState.period.active);
     const isSubmitted = boolFlag(pageState.assessmentCountry.is_submitted);
-    pageState.editable = periodOpen;
+    pageState.editable = periodOpen && !isSubmitted;
 
     const modeText = periodOpen ? 'Open' : 'Completed';
     const periodTitle = String(pageState.period.title || pageState.period.description || '-').trim() || '-';
-    meta.textContent = `${periodTitle} | Reference Year: ${pageState.period.year ?? '-'} | Status: ${modeText}`;
+    const countryName = String(pageState.assessmentCountry.country_name || pageState.assessmentCountry.country_code || '-').trim() || '-';
+    meta.textContent = `${periodTitle} | Reference Year: ${pageState.period.year ?? '-'} | Status: ${modeText} | ${countryName}`;
 
     if (periodOpen) {
       hint.className = 'period-hint mb-3';
       hint.textContent = isSubmitted
-        ? 'Assessment already submitted. You can still review and update while period is open.'
+        ? 'Assessment already submitted. Form is now read-only. Contact ASEANstats if revisions are required.'
         : 'Period is open. Fill data, click Save, then Submit when finalized.';
       hint.style.display = 'block';
-      uploadBtn.disabled = false;
-      exportBtn.disabled = false;
-      saveBtn.disabled = false;
-      submitBtn.disabled = false;
+      if (uploadWrap) uploadWrap.style.display = isSubmitted ? 'none' : '';
+      uploadBtn.disabled = isSubmitted;
+      exportBtn.style.display = canExport ? '' : 'none';
+      exportBtn.disabled = !canExport;
+      saveBtn.style.display = isSubmitted ? 'none' : '';
+      submitBtn.style.display = isSubmitted ? 'none' : '';
+      saveBtn.disabled = isSubmitted;
+      submitBtn.disabled = isSubmitted;
       submitBtn.textContent = isSubmitted ? 'Submitted' : 'Submit';
     } else {
       hint.className = 'period-hint mb-3';
       hint.textContent = 'Period is completed. Assessment is read-only.';
       hint.style.display = 'block';
+      if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
-      exportBtn.disabled = false;
+      exportBtn.style.display = canExport ? '' : 'none';
+      exportBtn.disabled = !canExport;
+      saveBtn.style.display = 'none';
+      submitBtn.style.display = 'none';
       saveBtn.disabled = true;
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submit';
@@ -1175,6 +1599,7 @@
     }
 
     tbody.innerHTML = rows.map((r, idx) => {
+      const isAseanstatsLocked = isAseanstatsOnlyLockedRow(r);
       const isSeriesNa = String(r.series ?? '').trim().toUpperCase() === 'NA';
       const cLabel = isSeriesNa ? '0' : ((r.c === null || r.c === undefined) ? 'N/A' : fmtNumber(r.c));
       const oLabel = isSeriesNa ? '0' : ((r.o === null || r.o === undefined) ? 'N/A' : fmtNumber(r.o));
@@ -1199,7 +1624,7 @@
             <div class="assessment-field-wrap">
               <label class="form-label form-label-sm mb-1">Series ${helpIconText(fieldTooltips.series, 'Series help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
-                data-row-id="${r.row_id}" data-field="series" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.series || '')}</textarea>
+                data-row-id="${r.row_id}" data-field="series" rows="3" ${disabled || isAseanstatsLocked ? 'disabled' : ''}>${esc(r.series || '')}</textarea>
             </div>
             <div class="assessment-metric-rows mt-2">
               <div class="assessment-metric-row">
@@ -1221,23 +1646,23 @@
             <div class="assessment-openness-grid">
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Machine Readability ${helpIconText(fieldTooltips.machine_readability, 'Machine Readability help')}</label>
-                ${opennessSelect('machine_readability', r.machine_readability, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
+                ${opennessSelect('machine_readability', r.machine_readability, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Proprietary ${helpIconText(fieldTooltips.proprietary, 'Proprietary help')}</label>
-                ${opennessSelect('proprietary', r.proprietary, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
+                ${opennessSelect('proprietary', r.proprietary, r.row_id, [0, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Download Options ${helpIconText(fieldTooltips.download_options, 'Download Options help')}</label>
-                ${opennessSelect('download_options', r.download_options, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
+                ${opennessSelect('download_options', r.download_options, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Metadata ${helpIconText(fieldTooltips.metadata, 'Metadata help')}</label>
-                ${opennessSelect('metadata', r.metadata, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
+                ${opennessSelect('metadata', r.metadata, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Term of Use ${helpIconText(fieldTooltips.term_of_use, 'Term of Use help')}</label>
-                ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isSeriesNa)}
+                ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
             </div>
             <div class="assessment-metric assessment-metric-final mt-2"><span>Opennes Sub Score</span><strong>${oLabel}</strong></div>
@@ -1246,12 +1671,12 @@
             <div class="assessment-field-wrap mb-2">
               <label class="form-label form-label-sm mb-1">Relevant URL ${helpIconText(fieldTooltips.urls, 'Relevant URL help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
-                data-row-id="${r.row_id}" data-field="urls" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.urls || '')}</textarea>
+                data-row-id="${r.row_id}" data-field="urls" rows="3" ${disabled || isAseanstatsLocked ? 'disabled' : ''}>${esc(r.urls || '')}</textarea>
             </div>
             <div class="assessment-field-wrap">
               <label class="form-label form-label-sm mb-1">Remark ${helpIconText(fieldTooltips.remarks, 'Remark help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
-                data-row-id="${r.row_id}" data-field="remarks" rows="3" ${disabled ? 'disabled' : ''}>${esc(r.remarks || '')}</textarea>
+                data-row-id="${r.row_id}" data-field="remarks" rows="3" ${disabled || isAseanstatsLocked ? 'disabled' : ''}>${esc(r.remarks || '')}</textarea>
             </div>
           </td>
         </tr>
@@ -1394,14 +1819,41 @@
 
   function showUploadResultDialog(result) {
     const summaryEl = document.getElementById('uploadResultSummary');
+    const unmatchedWrap = document.getElementById('uploadUnmatchedWrap');
     const tbody = document.getElementById('uploadUnmatchedRows');
+    const isSuccess = result?.success !== false;
     const uploaded = Number(result?.uploaded ?? 0);
     const matched = Number(result?.matched ?? 0);
     const unmatched = Array.isArray(result?.unmatched) ? result.unmatched : [];
+    const truncatedUrls = Number(result?.truncated?.urls ?? 0);
+    const truncatedRemarks = Number(result?.truncated?.remarks ?? 0);
     const skipped = Math.max(0, uploaded - matched);
 
-    summaryEl.textContent = `Processed template "${result?.sheetName || 'Input'}". Uploaded: ${uploaded}, matched: ${matched}, unmatched: ${skipped}.`;
+    if (!isSuccess) {
+      summaryEl.textContent = `Template processing failed: ${result?.error || 'Unexpected runtime error.'}`;
+      if (unmatchedWrap) unmatchedWrap.style.display = 'none';
+      tbody.innerHTML = '';
+      uploadResultModal.show();
+      return;
+    }
 
+    const truncateNotes = [];
+    if (truncatedUrls > 0) truncateNotes.push(`${truncatedUrls} URL value(s) were truncated to ${TEMPLATE_TEXT_MAX_LENGTH} characters`);
+    if (truncatedRemarks > 0) truncateNotes.push(`${truncatedRemarks} remark value(s) were truncated to ${TEMPLATE_TEXT_MAX_LENGTH} characters`);
+    const truncateText = truncateNotes.length ? ` ${truncateNotes.join('; ')}.` : '';
+    const successPrefix = pageState.isAseanstatsStaff
+      ? `Template "${result?.sheetName || 'Input'}" processed successfully. Uploaded: ${uploaded}, matched: ${matched}, unmatched: ${skipped}.`
+      : `Template "${result?.sheetName || 'Input'}" processed successfully.`;
+    summaryEl.textContent = `${successPrefix} Data has been populated on screen. Click Save to persist changes to the database.${truncateText}`;
+
+    if (!pageState.isAseanstatsStaff) {
+      if (unmatchedWrap) unmatchedWrap.style.display = 'none';
+      tbody.innerHTML = '';
+      uploadResultModal.show();
+      return;
+    }
+
+    if (unmatchedWrap) unmatchedWrap.style.display = '';
     if (!unmatched.length) {
       tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No unmatched rows.</td></tr>';
     } else {
@@ -1417,6 +1869,21 @@
     uploadResultModal.show();
   }
 
+  function normalizeTemplateHeader(raw) {
+    return String(raw ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  function truncateTemplateText(raw, maxLength = TEMPLATE_TEXT_MAX_LENGTH) {
+    const text = cellText(raw);
+    if (text.length <= maxLength) {
+      return { value: text, truncated: false };
+    }
+    return { value: text.slice(0, maxLength), truncated: true };
+  }
+
   async function applyTemplateRows(file) {
     if (!file) throw new Error('Please select an Excel file first.');
     if (!window.XLSX) throw new Error('Excel parser not available.');
@@ -1428,26 +1895,101 @@
 
     const sheet = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    if (!Array.isArray(rows) || rows.length < 2) throw new Error('Template sheet is empty.');
-    const parsedByCode = new Map();
+    if (!Array.isArray(rows) || rows.length < 1) throw new Error('Template sheet is empty.');
 
-    for (let i = 1; i < rows.length; i += 1) {
+    // Some templates include title/blank rows before the real header row.
+    const scanLimit = Math.min(rows.length, 20);
+    const headerRowIndex = rows.findIndex((r, idx) => {
+      if (idx >= scanLimit) return false;
+      return normalizeTemplateHeader(r?.[0]) === 'code';
+    });
+    if (headerRowIndex < 0) {
+      throw new Error('The first column header must be "Code".');
+    }
+    const headerRow = rows[headerRowIndex] || [];
+    const firstHeader = normalizeTemplateHeader(headerRow[0]);
+    if (firstHeader !== 'code') {
+      throw new Error('The first column header must be "Code".');
+    }
+
+    const nextHeaderRow = rows[headerRowIndex + 1] || [];
+    const requiredHeaderAliases = new Map([
+      ['series', ['series', 'coverageseries']],
+      ['machine_readability', ['machinereadilibility', 'machinereadibility', 'machinereadability']],
+      ['proprietary', ['proprietary', 'nonproprietary']],
+      ['download_options', ['downloadoptions']],
+      ['metadata', ['metadata', 'metadataavailability']],
+      ['term_of_use', ['termofuse', 'termofuser']],
+      ['url', ['url', 'urls', 'relevanturl', 'relevanturls']],
+      ['remark', ['remark', 'remarks', 'note', 'notes']],
+    ]);
+
+    const requiredLookup = new Set();
+    requiredHeaderAliases.forEach((aliases) => aliases.forEach((a) => requiredLookup.add(a)));
+    const nextRowHasHeaderTokens = nextHeaderRow.some((col) => requiredLookup.has(normalizeTemplateHeader(col)));
+
+    const headerIndexByKey = new Map();
+    function registerHeaderRow(row) {
+      row.forEach((col, idx) => {
+        const key = normalizeTemplateHeader(col);
+        if (!key || headerIndexByKey.has(key)) return;
+        headerIndexByKey.set(key, idx);
+      });
+    }
+    registerHeaderRow(headerRow);
+    if (nextRowHasHeaderTokens) {
+      registerHeaderRow(nextHeaderRow);
+    }
+
+    function findHeaderIndex(keys) {
+      for (const key of keys) {
+        if (headerIndexByKey.has(key)) return Number(headerIndexByKey.get(key));
+      }
+      return -1;
+    }
+
+    const indexOrFallback = (aliases, fallback) => {
+      const idx = findHeaderIndex(aliases);
+      return idx >= 0 ? idx : fallback;
+    };
+
+    // Fallback indexes follow the known template layout.
+    const seriesIdx = indexOrFallback(requiredHeaderAliases.get('series'), 5);
+    const machineReadabilityIdx = indexOrFallback(requiredHeaderAliases.get('machine_readability'), 13);
+    const proprietaryIdx = indexOrFallback(requiredHeaderAliases.get('proprietary'), 14);
+    const downloadOptionsIdx = indexOrFallback(requiredHeaderAliases.get('download_options'), 15);
+    const metadataIdx = indexOrFallback(requiredHeaderAliases.get('metadata'), 16);
+    const termOfUseIdx = indexOrFallback(requiredHeaderAliases.get('term_of_use'), 17);
+    const urlIdx = indexOrFallback(requiredHeaderAliases.get('url'), 19);
+    const remarkIdx = indexOrFallback(requiredHeaderAliases.get('remark'), 20);
+
+    const parsedByCode = new Map();
+    let truncatedUrls = 0;
+    let truncatedRemarks = 0;
+
+    const dataStartIndex = headerRowIndex + (nextRowHasHeaderTokens ? 2 : 1);
+    for (let i = dataStartIndex; i < rows.length; i += 1) {
       const xRow = rows[i] || [];
       const code = normalizeCode(xRow[0]);
       if (!code || !code.includes('.')) continue;
 
-      const series = normalizeSeriesYears(cellText(xRow[5]));
+      const series = normalizeSeriesYears(seriesIdx >= 0 ? cellText(xRow[seriesIdx]) : '');
+      const urlsResult = truncateTemplateText(urlIdx >= 0 ? xRow[urlIdx] : '');
+      const remarksResult = truncateTemplateText(remarkIdx >= 0 ? xRow[remarkIdx] : '');
+      if (urlsResult.truncated) truncatedUrls += 1;
+      if (remarksResult.truncated) truncatedRemarks += 1;
+
       const parsed = {
         code,
         source_row: i + 1,
         series,
-        machine_readability: parseTemplateMetric(xRow[13], [-1, 0, 1]),
-        proprietary: parseTemplateMetric(xRow[14], [-1, 0, 1]),
-        download_options: parseTemplateMetric(xRow[15], [-1, 0, 0.5, 1]),
-        metadata: parseTemplateMetric(xRow[16], [-1, 0, 0.5, 1]),
-        term_of_use: parseTemplateMetric(xRow[17], [-1, 0, 0.5, 1]),
-        urls: cellText(xRow[19]),
-        remarks: cellText(xRow[20]),
+        machine_readability: machineReadabilityIdx >= 0 ? parseTemplateMetric(xRow[machineReadabilityIdx], [-1, 0, 1]) : null,
+        proprietary: proprietaryIdx >= 0 ? parseTemplateMetric(xRow[proprietaryIdx], [-1, 0, 1]) : null,
+        download_options: downloadOptionsIdx >= 0 ? parseTemplateMetric(xRow[downloadOptionsIdx], [-1, 0, 0.5, 1]) : null,
+        metadata: metadataIdx >= 0 ? parseTemplateMetric(xRow[metadataIdx], [-1, 0, 0.5, 1]) : null,
+        term_of_use: termOfUseIdx >= 0 ? parseTemplateMetric(xRow[termOfUseIdx], [-1, 0, 0.5, 1]) : null,
+        urls: urlsResult.value,
+        remarks: remarksResult.value,
       };
 
       if (String(series).trim().toUpperCase() === 'NA') {
@@ -1460,15 +2002,79 @@
 
       parsedByCode.set(code, parsed);
     }
-    return { sheetName, parsedRows: [...parsedByCode.values()] };
+    return {
+      sheetName,
+      parsedRows: [...parsedByCode.values()],
+      truncated: {
+        urls: truncatedUrls,
+        remarks: truncatedRemarks,
+      },
+    };
   }
 
-  function openUploadTemplateDialog() {
+  function applyParsedRowsToScreen(parsedRows) {
+    const sourceRows = Array.isArray(pageState.detail) ? pageState.detail : [];
+    const rowByCode = new Map();
+    sourceRows.forEach((row) => {
+      const key = normalizeCode(row.prefix);
+      if (!key || rowByCode.has(key)) return;
+      rowByCode.set(key, row);
+    });
+
+    let matched = 0;
+    const unmatched = [];
+
+    (parsedRows || []).forEach((parsed) => {
+      const code = normalizeCode(parsed?.code);
+      const row = rowByCode.get(code);
+      if (!row) {
+        unmatched.push({
+          code,
+          source_row: parsed?.source_row || null,
+          reason: 'Code not mapped to current form rows.',
+        });
+        return;
+      }
+
+      matched += 1;
+      if (isAseanstatsOnlyLockedRow(row)) {
+        applyAseanstatsOnlyDefaults(row);
+        row.urls = '';
+        row.remarks = '';
+        return;
+      }
+
+      row.series = String(parsed.series ?? '').trim();
+      row.machine_readability = parsed.machine_readability ?? null;
+      row.proprietary = parsed.proprietary ?? null;
+      row.download_options = parsed.download_options ?? null;
+      row.metadata = parsed.metadata ?? null;
+      row.term_of_use = parsed.term_of_use ?? null;
+      row.urls = String(parsed.urls ?? '');
+      row.remarks = String(parsed.remarks ?? '');
+      applySeriesNaToOpenness(row);
+    });
+
+    recomputeLocalScores();
+    renderSummaryRows();
+    renderFilterControls();
+    renderDetailRows();
+
+    return { matched, unmatched };
+  }
+
+  async function openUploadTemplateDialog() {
     hideError();
     if (!pageState.editable) {
       odToast('Period is completed. Upload is disabled.');
       return;
     }
+    const confirmed = await odConfirm(
+      'Uploading the template will overwrite the data currently displayed on the screen. Are you sure you want to continue?',
+      'Confirm Upload Template'
+    );
+    if (!confirmed) return;
+
     setUploadTemplateFile(null);
     const uploadInput = document.getElementById('uploadTemplateInput');
     if (uploadInput) uploadInput.value = '';
@@ -1487,30 +2093,23 @@
 
     try {
       const result = await applyTemplateRows(uploadTemplateFile);
+      result.success = true;
       result.uploaded = Array.isArray(result.parsedRows) ? result.parsedRows.length : 0;
-      result.matched = 0;
-      result.unmatched = [];
-
-      if (pageState.assessmentCountry?.id) {
-        const uploadResult = await odFetch('/api/trx/form/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            periodid: pageState.periodId,
-            countryid: pageState.assessmentCountry.id,
-            rows: result.parsedRows,
-          }),
-        });
-        result.uploaded = Number(uploadResult?.data?.uploaded ?? result.uploaded);
-        result.matched = Number(uploadResult?.data?.matched || 0);
-        result.unmatched = Array.isArray(uploadResult?.data?.unmatched) ? uploadResult.data.unmatched : [];
-      }
+      const applied = applyParsedRowsToScreen(result.parsedRows);
+      result.matched = Number(applied?.matched || 0);
+      result.unmatched = Array.isArray(applied?.unmatched) ? applied.unmatched : [];
 
       uploadTemplateModal.hide();
-      await loadForm();
       showUploadResultDialog(result);
     } catch (err) {
-      showError(err.message || 'Failed to process template.');
+      uploadTemplateModal.hide();
+      showUploadResultDialog({
+        success: false,
+        error: err.message || 'Unexpected runtime error.',
+        uploaded: 0,
+        matched: 0,
+        unmatched: [],
+      });
     } finally {
       btn.disabled = false;
     }
@@ -1519,6 +2118,10 @@
   function setRowField(rowId, field, value) {
     const row = pageState.detail.find((r) => String(r.row_id) === String(rowId));
     if (!row) return;
+    if (isAseanstatsOnlyLockedRow(row)) {
+      applyAseanstatsOnlyDefaults(row);
+      return;
+    }
     const opennessFields = ['machine_readability', 'proprietary', 'download_options', 'metadata', 'term_of_use'];
     if (opennessFields.includes(field) && String(row.series ?? '').trim().toUpperCase() === 'NA') {
       row[field] = -1;
@@ -1618,6 +2221,7 @@
       const data = response.data || {};
       pageState.period = data.period || null;
       pageState.assessmentCountry = data.assessment_country || null;
+      pageState.isAseanstatsStaff = boolFlag(data.viewer?.is_aseanstats_staff);
       pageState.detailMeta = data.detail_meta || null;
       pageState.detail = (data.detail || []).map((row, index) => ({
         ...row,
@@ -1656,6 +2260,7 @@
       renderSummaryRows();
       renderFilterControls();
       renderDetailRows();
+      maybeAutoOpenHelpWizard();
     } catch (err) {
       renderMeta();
       summaryBody.innerHTML = `<tr><td colspan="9" class="text-danger">${esc(err.message || 'Failed to load summary.')}</td></tr>`;
@@ -1667,17 +2272,19 @@
   function collectRowsPayload() {
     const sourceRows = Array.isArray(pageState.detail) ? pageState.detail : [];
     return sourceRows.map((r) => {
-      const isSeriesNa = String(r.series ?? '').trim().toUpperCase() === 'NA';
+      const isLocked = isAseanstatsOnlyLockedRow(r);
+      const series = isLocked ? 'NA' : String(r.series ?? '');
+      const isSeriesNa = String(series).trim().toUpperCase() === 'NA';
       return {
         row_id: r.row_id,
-        series: String(r.series ?? ''),
+        series,
         machine_readability: isSeriesNa ? -1 : parseMetric(r.machine_readability, null),
         proprietary: isSeriesNa ? -1 : parseMetric(r.proprietary, null),
         download_options: isSeriesNa ? -1 : parseMetric(r.download_options, null),
         metadata: isSeriesNa ? -1 : parseMetric(r.metadata, null),
         term_of_use: isSeriesNa ? -1 : parseMetric(r.term_of_use, null),
-        urls: String(r.urls ?? ''),
-        remarks: String(r.remarks ?? ''),
+        urls: isLocked ? '' : String(r.urls ?? ''),
+        remarks: isLocked ? '' : String(r.remarks ?? ''),
       };
     });
   }
@@ -1716,7 +2323,11 @@
     if (!pageState.editable) return;
     if (!pageState.assessmentCountry) return;
 
-    const confirmed = await odConfirm('Submit this assessment? You can still update while period remains open.', 'Submit Assessment');
+    const confirmed = await odConfirm(
+      'Are you sure you want to submit this assessment?\n\nOnce the assessment is submitted, it will be locked and can no longer be edited. If any revisions are needed, please contact ASEANstats to request access for further changes.',
+      'Submit Assessment',
+      { smallSecondBlock: true }
+    );
     if (!confirmed) return;
 
     const btnSave = document.getElementById('btnSaveForm');
@@ -1742,10 +2353,32 @@
     }
   }
 
+  function updateNavigatorVisibility() {
+    const navigatorDock = document.getElementById('navigatorDock');
+    const entryTab = document.getElementById('entry-tab');
+    const isEntryActive = entryTab?.classList.contains('active');
+    if (!navigatorDock) return;
+    navigatorDock.style.display = isEntryActive ? '' : 'none';
+    if (!isEntryActive) {
+      navigatorDock.classList.remove('is-open');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    const backBtn = document.getElementById('btnBackForm');
+    if (backBtn) {
+      backBtn.setAttribute('href', pageState.backUrl || '/dashboard');
+    }
+
     navigatorModal = new bootstrap.Modal(document.getElementById('entryNavigatorDialog'));
     uploadTemplateModal = new bootstrap.Modal(document.getElementById('uploadTemplateDialog'));
     uploadResultModal = new bootstrap.Modal(document.getElementById('uploadResultDialog'));
+    const helpWizardDialogEl = document.getElementById('helpWizardDialog');
+    helpWizardModal = new bootstrap.Modal(helpWizardDialogEl, {
+      backdrop: false,
+      focus: false,
+      keyboard: true,
+    });
     initTooltips(document);
     const navigatorDock = document.getElementById('navigatorDock');
     const uploadDropzone = document.getElementById('uploadDropzone');
@@ -1765,6 +2398,8 @@
       pageState.filters.unfinishedOnly = event.target.checked;
       renderDetailRows();
     });
+    document.getElementById('entry-tab').addEventListener('shown.bs.tab', updateNavigatorVisibility);
+    document.getElementById('summary-tab').addEventListener('shown.bs.tab', updateNavigatorVisibility);
     document.getElementById('btnNavMain').addEventListener('click', () => {
       navigatorDock.classList.toggle('is-open');
     });
@@ -1790,12 +2425,36 @@
       setTimeout(() => jumpToRow(rowId), 200);
     });
     bindEntryInputSync();
-    document.getElementById('btnRefreshForm').addEventListener('click', loadForm);
     document.getElementById('btnUploadTemplateOpen').addEventListener('click', openUploadTemplateDialog);
     document.getElementById('btnUploadTemplateProcess').addEventListener('click', processUploadTemplate);
     document.getElementById('btnExportForm').addEventListener('click', exportFormToExcel);
     document.getElementById('btnSaveForm').addEventListener('click', saveForm);
     document.getElementById('btnSubmitForm').addEventListener('click', submitForm);
+    document.getElementById('btnHelpWizard').addEventListener('click', () => {
+      openHelpWizard(0);
+    });
+    document.getElementById('btnHelpWizardPrev').addEventListener('click', () => {
+      helpWizardState.stepIndex -= 1;
+      renderHelpWizardStep();
+    });
+    document.getElementById('btnHelpWizardNext').addEventListener('click', () => {
+      const lastIndex = helpWizardSteps.length - 1;
+      if (helpWizardState.stepIndex >= lastIndex) {
+        helpWizardModal.hide();
+        return;
+      }
+      helpWizardState.stepIndex += 1;
+      renderHelpWizardStep();
+    });
+    helpWizardDialogEl.addEventListener('shown.bs.modal', () => {
+      releaseHelpWizardBodyLock();
+      renderHelpWizardStep();
+    });
+    helpWizardDialogEl.addEventListener('hidden.bs.modal', () => {
+      releaseHelpWizardBodyLock();
+      clearHelpWizardHighlight();
+      activateAssessmentTab('entry');
+    });
 
     uploadDropzone.addEventListener('click', () => uploadInput.click());
     uploadInput.addEventListener('change', (event) => {
@@ -1818,6 +2477,7 @@
       uploadInput.value = '';
     });
 
+    updateNavigatorVisibility();
     loadForm();
   });
 </script>

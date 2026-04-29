@@ -34,32 +34,8 @@
                 <i class="fa-solid fa-bars"></i>
             </button>
             <a class="od-brand" href="{{ route('dashboard') }}">
-                <img src="{{ asset('img/ASEAN_Logo_small.png') }}" alt="ASEANstats">
+                <img src="{{ asset('img/ASEANstats.jpg') }}" alt="ASEANstats">
             </a>
-        </div>
-
-        <div class="d-flex align-items-center gap-2">
-            <div class="dropdown">
-                <button class="od-profile-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <span class="od-avatar">{{ $initial }}</span>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end">
-                    <div class="od-user-head d-flex align-items-center gap-2">
-                        <span class="od-avatar">{{ $initial }}</span>
-                        <div>
-                            <p class="od-user-name">{{ $authUser?->name ?? '-' }}</p>
-                            <p class="od-user-email">{{ $authUser?->email ?? '-' }}</p>
-                        </div>
-                    </div>
-                    <a class="dropdown-item od-dropdown-action" href="{{ route('profile.edit') }}">My Profile</a>
-                    <div class="od-logout-wrap">
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="od-btn-logout" type="submit">Logout</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </header>
@@ -79,39 +55,39 @@
 
         <nav class="od-menu">
             <p class="od-menu-section">Assessment</p>
-            <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
+            <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="Histories">
                 <i class="fa-solid fa-chart-pie"></i><span>Histories</span>
             </a>
-            <a class="od-menu-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}" href="{{ route('profile.edit') }}">
+            <a class="od-menu-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}" href="{{ route('profile.edit') }}" title="Profile">
                 <i class="fa-solid fa-user"></i><span>Profile</span>
             </a>
             <form method="POST" action="{{ route('logout') }}" class="od-menu-form">
                 @csrf
-                <button type="submit" class="od-menu-link od-menu-link-btn">
+                <button type="submit" class="od-menu-link od-menu-link-btn" title="Sign-out">
                     <i class="fa-solid fa-right-from-bracket"></i><span>Sign-out</span>
                 </button>
             </form>
 
             @if($isAdmin)
             <p class="od-menu-section mt-2">Admin</p>
-            <a class="od-menu-link {{ request()->routeIs('trx.periods') ? 'active' : '' }}" href="{{ route('trx.periods') }}">
+            <a class="od-menu-link {{ request()->routeIs('trx.periods') ? 'active' : '' }}" href="{{ route('trx.periods') }}" title="Periods">
                 <i class="fa-solid fa-calendar-days"></i><span>Periods</span>
             </a>
             <hr/>
-            <a class="od-menu-link {{ request()->routeIs('adm.sections') ? 'active' : '' }}" href="{{ route('adm.sections') }}">
+            <a class="od-menu-link {{ request()->routeIs('adm.sections') ? 'active' : '' }}" href="{{ route('adm.sections') }}" title="Sections">
                 <i class="fa-solid fa-layer-group"></i><span>Sections</span>
             </a>
-            <a class="od-menu-link {{ request()->routeIs('adm.categories') ? 'active' : '' }}" href="{{ route('adm.categories') }}">
+            <a class="od-menu-link {{ request()->routeIs('adm.categories') ? 'active' : '' }}" href="{{ route('adm.categories') }}" title="Categories">
                 <i class="fa-solid fa-tags"></i><span>Categories</span>
             </a>
-            <a class="od-menu-link {{ request()->routeIs('adm.indicators') ? 'active' : '' }}" href="{{ route('adm.indicators') }}">
+            <a class="od-menu-link {{ request()->routeIs('adm.indicators') ? 'active' : '' }}" href="{{ route('adm.indicators') }}" title="Indicators">
                 <i class="fa-solid fa-chart-line"></i><span>Indicators</span>
             </a>
-            <a class="od-menu-link {{ request()->routeIs('adm.sub_indicators') ? 'active' : '' }}" href="{{ route('adm.sub_indicators') }}">
+            <a class="od-menu-link {{ request()->routeIs('adm.sub_indicators') ? 'active' : '' }}" href="{{ route('adm.sub_indicators') }}" title="Aggregations">
                 <i class="fa-solid fa-list-check"></i><span>Aggregations</span>
             </a>
             <hr/>
-            <a class="od-menu-link {{ request()->routeIs('adm.users') ? 'active' : '' }}" href="{{ route('adm.users') }}">
+            <a class="od-menu-link {{ request()->routeIs('adm.users') ? 'active' : '' }}" href="{{ route('adm.users') }}" title="Users">
                 <i class="fa-solid fa-users"></i><span>Users</span>
             </a>
             @endif
