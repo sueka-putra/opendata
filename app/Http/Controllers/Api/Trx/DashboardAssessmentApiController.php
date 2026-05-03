@@ -85,18 +85,23 @@ class DashboardAssessmentApiController extends Controller
         $weightedSectionId = (int) config('opendata.weighted_section_id', 0);
 
         $summaryByCountry = collect();
+        $sectionScoresByCountry = collect();
         $progressByCountry = collect();
         if ($assessmentCountryIds->isNotEmpty()) {
-            $summaryByCountry = DB::table('od_trx_assessment_summaries')
-                ->whereIn('assessment_country_id', $assessmentCountryIds->all())
+            $summaryRows = DB::table('od_trx_assessment_summaries as s')
+                ->leftJoin('od_mst_sections as ms', 'ms.id', '=', 's.section_id')
+                ->whereIn('s.assessment_country_id', $assessmentCountryIds->all())
                 ->get([
-                    'assessment_country_id',
-                    'section_id',
-                    'coverage_max_score',
-                    'coverage_actual_score',
-                    'opennes_max_score',
-                    'opennes_actual_score',
-                ])
+                    's.assessment_country_id',
+                    's.section_id',
+                    's.coverage_max_score',
+                    's.coverage_actual_score',
+                    's.opennes_max_score',
+                    's.opennes_actual_score',
+                    'ms.title as section_title',
+                ]);
+
+            $summaryByCountry = $summaryRows
                 ->groupBy('assessment_country_id')
                 ->map(function ($rows) use ($weightedSectionId) {
                     $baseRows = collect($rows)->filter(function ($r) use ($weightedSectionId) {
@@ -138,6 +143,38 @@ class DashboardAssessmentApiController extends Controller
                     ];
                 });
 
+            $sectionScoresByCountry = $summaryRows
+                ->groupBy('assessment_country_id')
+                ->map(function ($rows) use ($weightedSectionId) {
+                    return collect($rows)
+                        ->filter(function ($row) use ($weightedSectionId) {
+                            if ($weightedSectionId <= 0) {
+                                return true;
+                            }
+
+                            return (int) ($row->section_id ?? 0) !== $weightedSectionId;
+                        })
+                        ->map(function ($row) {
+                            $coverageMax = (float) ($row->coverage_max_score ?? 0);
+                            $coverageActual = (float) ($row->coverage_actual_score ?? 0);
+                            $opennessMax = (float) ($row->opennes_max_score ?? 0);
+                            $opennessActual = (float) ($row->opennes_actual_score ?? 0);
+
+                            $coverageRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
+                            $opennessRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
+
+                            return [
+                                'section_id' => (int) ($row->section_id ?? 0),
+                                'section_title' => (string) ($row->section_title ?? ('Section ' . (int) ($row->section_id ?? 0))),
+                                'coverage_sub_score_ratio' => round($coverageRatio, 6),
+                                'opennes_sub_score_ratio' => round($opennessRatio, 6),
+                            ];
+                        })
+                        ->sortBy('section_id')
+                        ->values()
+                        ->all();
+                });
+
             $progressByCountry = DB::table('od_trx_assessment_country_rows')
                 ->whereIn('assessment_country_id', $assessmentCountryIds->all())
                 ->get([
@@ -177,7 +214,7 @@ class DashboardAssessmentApiController extends Controller
         }
 
         $rows = $baseRows
-            ->map(function ($row) use ($adminCode, $summaryByCountry, $progressByCountry) {
+            ->map(function ($row) use ($adminCode, $summaryByCountry, $progressByCountry, $sectionScoresByCountry) {
                 $countryName = $row->country_name;
                 if (!$countryName && $row->country_code === $adminCode) {
                     $countryName = 'ASEANstats';
@@ -190,6 +227,7 @@ class DashboardAssessmentApiController extends Controller
                 $progress = $progressByCountry->get((int) $row->assessment_country_id, [
                     'progress' => 0,
                 ]);
+                $sectionScores = $sectionScoresByCountry->get((int) $row->assessment_country_id, []);
 
                 return [
                     'assessment_country_id' => (int) $row->assessment_country_id,
@@ -204,6 +242,7 @@ class DashboardAssessmentApiController extends Controller
                     'coverage_sub_score_ratio' => (float) ($summary['coverage_sub_score_ratio'] ?? 0),
                     'opennes_sub_score_ratio' => (float) ($summary['opennes_sub_score_ratio'] ?? 0),
                     'overall_score_ratio' => (float) ($summary['overall_score_ratio'] ?? 0),
+                    'section_scores' => $sectionScores,
                     'modified_date' => $row->modified_date,
                 ];
             })

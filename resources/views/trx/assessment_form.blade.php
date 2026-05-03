@@ -62,6 +62,9 @@
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-pane" type="button" role="tab" aria-controls="summary-pane" aria-selected="false">Summary</button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="log-tab" data-bs-toggle="tab" data-bs-target="#log-pane" type="button" role="tab" aria-controls="log-pane" aria-selected="false">Log</button>
+      </li>
     </ul>
 
     <div class="tab-content" id="assessmentTabContent">
@@ -151,6 +154,29 @@
               </thead>
               <tbody id="summaryRows">
                 <tr><td colspan="9" class="text-muted">Loading summary...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="log-pane" role="tabpanel" aria-labelledby="log-tab">
+        <div class="period-table-card mb-3">
+          <div class="period-table-toolbar d-flex align-items-center justify-content-between gap-3 flex-wrap">
+            <strong class="assessment-toolbar-title">Assessment Log</strong>
+            <span class="text-muted small">&nbsp;</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table period-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width:220px;">Tanggal dan waktu</th>
+                  <th style="width:320px;">Actor</th>
+                  <th>Action/Text</th>
+                </tr>
+              </thead>
+              <tbody id="logRows">
+                <tr><td colspan="3" class="text-muted">Loading logs...</td></tr>
               </tbody>
             </table>
           </div>
@@ -392,6 +418,17 @@
   .assessment-metric.assessment-metric-final strong {
     font-size: 0.9rem;
     color: #172a45;
+  }
+
+  .assessment-score-stack {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .assessment-score-footer {
+    margin-top: auto;
+    padding-top: 0.5rem;
   }
 
   #tblNavigator tbody tr.navigator-row-complete td {
@@ -738,6 +775,7 @@
     detailMeta: null,
     detail: [],
     summary: [],
+    logs: [],
     summaryLocked: {},
     weightedScore: null,
     editable: false,
@@ -833,6 +871,25 @@
     return Number.isInteger(num) ? String(num) : num.toFixed(digits);
   }
 
+  function fmtDateTime(value) {
+    if (!value) return '-';
+    const raw = String(value).trim();
+    if (!raw) return '-';
+    const hasTimezone = /(?:Z|[+\-]\d{2}:\d{2})$/i.test(raw);
+    const utcIso = hasTimezone ? raw : raw.replace(' ', 'T') + 'Z';
+    const dt = new Date(utcIso);
+    if (Number.isNaN(dt.getTime())) return String(value);
+    return dt.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  }
+
   function helpIconText(text, label = 'Field help') {
     const clean = String(text || '').trim();
     if (!clean) return '';
@@ -863,7 +920,9 @@
   }
 
   function activateAssessmentTab(tabName) {
-    const tabId = tabName === 'summary' ? 'summary-tab' : 'entry-tab';
+    let tabId = 'entry-tab';
+    if (tabName === 'summary') tabId = 'summary-tab';
+    if (tabName === 'log') tabId = 'log-tab';
     const tabEl = document.getElementById(tabId);
     if (!tabEl) return;
     bootstrap.Tab.getOrCreateInstance(tabEl).show();
@@ -1621,6 +1680,7 @@
             </div>
           </td>
           <td>
+            <div class="assessment-score-stack">
             <div class="assessment-field-wrap">
               <label class="form-label form-label-sm mb-1">Series ${helpIconText(fieldTooltips.series, 'Series help')}</label>
               <textarea class="form-control form-control-sm assessment-input"
@@ -1637,12 +1697,14 @@
                 <div class="assessment-metric"><span>C2</span><strong>${c2Label}</strong></div>
                 <div class="assessment-metric"><span>C3</span><strong>${c3Label}</strong></div>
               </div>
-              <div class="assessment-metric-row assessment-metric-row-final">
-                <div class="assessment-metric assessment-metric-final"><span>Coverage Sub Score</span><strong>${cLabel}</strong></div>
-              </div>
+            </div>
+            <div class="assessment-score-footer">
+              <div class="assessment-metric assessment-metric-final"><span>Coverage Sub Score</span><strong>${cLabel}</strong></div>
+            </div>
             </div>
           </td>
           <td>
+            <div class="assessment-score-stack">
             <div class="assessment-openness-grid">
               <div class="assessment-openness-item">
                 <label class="form-label form-label-sm mb-1">Machine Readability ${helpIconText(fieldTooltips.machine_readability, 'Machine Readability help')}</label>
@@ -1665,7 +1727,10 @@
                 ${opennessSelect('term_of_use', r.term_of_use, r.row_id, [0, 0.5, 1, { value: -1, label: 'NA' }], disabled || isAseanstatsLocked || isSeriesNa)}
               </div>
             </div>
-            <div class="assessment-metric assessment-metric-final mt-2"><span>Opennes Sub Score</span><strong>${oLabel}</strong></div>
+            <div class="assessment-score-footer">
+              <div class="assessment-metric assessment-metric-final"><span>Opennes Sub Score</span><strong>${oLabel}</strong></div>
+            </div>
+            </div>
           </td>
           <td>
             <div class="assessment-field-wrap mb-2">
@@ -1683,7 +1748,26 @@
       `;
     }).join('');
 
+    syncSubScoreAlignment(tbody);
     initTooltips(tbody);
+  }
+
+  function syncSubScoreAlignment(scopeEl) {
+    const root = scopeEl || document;
+    const tableRows = root.querySelectorAll('tr[data-row-id]');
+    tableRows.forEach((row) => {
+      const stacks = row.querySelectorAll('.assessment-score-stack');
+      if (!stacks || stacks.length < 2) return;
+      stacks.forEach((stack) => {
+        stack.style.minHeight = '';
+      });
+      const heights = Array.from(stacks).map((stack) => stack.offsetHeight || 0);
+      const maxHeight = Math.max(...heights, 0);
+      if (maxHeight <= 0) return;
+      stacks.forEach((stack) => {
+        stack.style.minHeight = `${maxHeight}px`;
+      });
+    });
   }
 
   function normalizeCode(raw) {
@@ -2197,17 +2281,63 @@
     document.getElementById('formError').classList.add('d-none');
   }
 
+  function renderLogRows() {
+    const tbody = document.getElementById('logRows');
+    const logs = Array.isArray(pageState.logs) ? pageState.logs : [];
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No logs found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = logs.map((row) => {
+      const actorName = String(row.actor_name || '-').trim() || '-';
+      const actorEmail = String(row.actor_email || '').trim();
+      const actorLabel = `${actorName} (${actorEmail || '-'})`;
+      return `
+        <tr>
+          <td>${esc(fmtDateTime(row.event_date))}</td>
+          <td>${esc(actorLabel)}</td>
+          <td>${esc(String(row.action_text || '-'))}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadLogs() {
+    const logBody = document.getElementById('logRows');
+    logBody.innerHTML = '<tr><td colspan="3" class="text-muted">Loading logs...</td></tr>';
+    if (!pageState.periodId) {
+      logBody.innerHTML = '<tr><td colspan="3" class="text-danger">Invalid period.</td></tr>';
+      return;
+    }
+
+    try {
+      let url = `/api/trx/form/logs?periodid=${encodeURIComponent(pageState.periodId)}`;
+      if (pageState.countryCode) {
+        url += `&country_code=${encodeURIComponent(pageState.countryCode)}`;
+      }
+      const response = await odFetch(url);
+      pageState.logs = Array.isArray(response?.data?.logs) ? response.data.logs : [];
+      renderLogRows();
+    } catch (err) {
+      logBody.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Failed to load logs.')}</td></tr>`;
+    }
+  }
+
   async function loadForm() {
     hideError();
     const detailBody = document.getElementById('detailRows');
     const summaryBody = document.getElementById('summaryRows');
+    const logBody = document.getElementById('logRows');
     detailBody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading rows...</td></tr>';
     summaryBody.innerHTML = '<tr><td colspan="9" class="text-muted">Loading summary...</td></tr>';
+    logBody.innerHTML = '<tr><td colspan="3" class="text-muted">Loading logs...</td></tr>';
 
     if (!pageState.periodId) {
       showError('Missing query parameter: periodid');
       detailBody.innerHTML = '<tr><td colspan="4" class="text-danger">Invalid period.</td></tr>';
       summaryBody.innerHTML = '<tr><td colspan="9" class="text-danger">Invalid period.</td></tr>';
+      logBody.innerHTML = '<tr><td colspan="3" class="text-danger">Invalid period.</td></tr>';
       return;
     }
 
@@ -2260,11 +2390,13 @@
       renderSummaryRows();
       renderFilterControls();
       renderDetailRows();
+      await loadLogs();
       maybeAutoOpenHelpWizard();
     } catch (err) {
       renderMeta();
       summaryBody.innerHTML = `<tr><td colspan="9" class="text-danger">${esc(err.message || 'Failed to load summary.')}</td></tr>`;
       detailBody.innerHTML = `<tr><td colspan="4" class="text-danger">${esc(err.message || 'Failed to load details.')}</td></tr>`;
+      logBody.innerHTML = `<tr><td colspan="3" class="text-danger">${esc(err.message || 'Failed to load logs.')}</td></tr>`;
       showError(err.message || 'Failed to load assessment');
     }
   }
@@ -2400,6 +2532,7 @@
     });
     document.getElementById('entry-tab').addEventListener('shown.bs.tab', updateNavigatorVisibility);
     document.getElementById('summary-tab').addEventListener('shown.bs.tab', updateNavigatorVisibility);
+    document.getElementById('log-tab').addEventListener('shown.bs.tab', updateNavigatorVisibility);
     document.getElementById('btnNavMain').addEventListener('click', () => {
       navigatorDock.classList.toggle('is-open');
     });
@@ -2479,6 +2612,12 @@
 
     updateNavigatorVisibility();
     loadForm();
+
+    window.addEventListener('resize', () => {
+      const tbody = document.getElementById('detailRows');
+      if (!tbody) return;
+      syncSubScoreAlignment(tbody);
+    });
   });
 </script>
 @endpush

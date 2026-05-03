@@ -267,6 +267,52 @@ class FormApiController extends Controller
         ]);
     }
 
+    public function logs(Request $request)
+    {
+        $periodId = (int) $request->query('periodid');
+        $countryCode = (string) $request->query('country_code', $request->user()->country_code);
+
+        if (!$request->user()->isAdmin() && $request->user()->country_code !== $countryCode) {
+            return $this->fail('Assessment not found', 404);
+        }
+
+        $auditEvent = (string) config('opendata.audit_event', 'opendata');
+        $logs = DB::table('bd_logs as l')
+            ->join('bd_contacts as c', function ($join) use ($auditEvent) {
+                $join->on('c.email', '=', 'l.email')
+                    ->whereRaw('LOWER(c.event) = ?', [strtolower($auditEvent)]);
+            })
+            ->join('od_trx_assessment_countries as cr', 'cr.id', '=', 'l.header_id')
+            ->join('od_trx_assessment_periods as p', 'p.id', '=', 'cr.period_id')
+            ->whereRaw('LOWER(l.event) = ?', [strtolower($auditEvent)])
+            ->where('p.id', $periodId)
+            ->where('cr.country_code', $countryCode)
+            ->orderByDesc('l.event_date')
+            ->orderByDesc('l.id')
+            ->select([
+                'l.id',
+                'l.event_date',
+                'l.email',
+                'l.note',
+                DB::raw("COALESCE(NULLIF(c.person_name, ''), '-') as actor_name"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) $row->id,
+                    'event_date' => $row->event_date,
+                    'actor_name' => (string) ($row->actor_name ?? '-'),
+                    'actor_email' => (string) ($row->email ?? ''),
+                    'action_text' => (string) ($row->note ?? ''),
+                ];
+            })
+            ->values();
+
+        return $this->ok([
+            'logs' => $logs,
+        ]);
+    }
+
     public function update(Request $request)
     {
         $payload = $request->validate([
