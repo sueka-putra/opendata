@@ -281,11 +281,19 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <div class="small text-muted mb-2" id="helpWizardStepMeta">Step 1 of 1</div>
-            <h6 class="mb-2" id="helpWizardStepTitle">Welcome</h6>
-            <p class="mb-2" id="helpWizardStepDescription">This wizard guides you through the main actions in this page.</p>
-            <div class="assessment-help-hint-box small mb-0" id="helpWizardTargetHint">
-              Focus area will be highlighted on the page.
+            <div class="assessment-help-layout">
+              <div class="assessment-help-outline-wrap">
+                <div class="assessment-help-outline-title">Outline</div>
+                <div id="helpWizardOutline" class="assessment-help-outline-list"></div>
+              </div>
+              <div class="assessment-help-detail-wrap">
+                <div class="small text-muted mb-2" id="helpWizardStepMeta">Step 1 of 1</div>
+                <h6 class="mb-2" id="helpWizardStepTitle">Welcome</h6>
+                <p class="mb-2" id="helpWizardStepDescription">This wizard guides you through the main actions in this page.</p>
+                <div class="assessment-help-hint-box small mb-0" id="helpWizardTargetHint">
+                  Focus area will be highlighted on the page.
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -642,29 +650,33 @@
     position: fixed;
     top: 0.9rem;
     right: 1rem;
-    width: min(420px, calc(100vw - 1.2rem));
-    max-width: min(420px, calc(100vw - 1.2rem));
+    width: min(840px, calc(100vw - 1.2rem));
+    max-width: min(840px, calc(100vw - 1.2rem));
     pointer-events: auto;
     transform: none !important;
     z-index: 3001;
   }
 
+  .assessment-help-wizard-modal .modal-dialog:not(.is-positioned) {
+    visibility: hidden;
+  }
+
   .assessment-help-wizard-modal .modal-content {
-    border: 1px solid #b7cae5;
+    border: 2px solid #d97706;
     border-radius: 8px;
-    box-shadow: none;
-    background: #f8fbff;
+    box-shadow: 0 8px 22px rgba(180, 83, 9, 0.2);
+    background: #fffaf2;
   }
 
   .assessment-help-wizard-modal .modal-header {
-    border-bottom: 1px solid #cfdbeb;
-    background: #ecf3fd;
+    border-bottom: 1px solid #f3c78a;
+    background: #ffedd5;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
   }
 
   .assessment-help-wizard-modal .modal-title {
-    color: #1e3f67;
+    color: #9a3412;
     font-size: 0.95rem;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -675,18 +687,78 @@
     padding-bottom: 0.8rem;
   }
 
-  .assessment-help-hint-box {
-    border: 1px solid #c7d8ee;
+  .assessment-help-layout {
+    display: flex;
+    gap: 0.7rem;
+  }
+
+  .assessment-help-outline-wrap {
+    flex: 0 0 30%;
+    max-width: 30%;
+    border: 1px solid #f3c78a;
     border-radius: 6px;
-    background: #eff6ff;
-    color: #39557a;
+    background: #fff6ea;
+    padding: 0.5rem;
+  }
+
+  .assessment-help-outline-title {
+    color: #9a3412;
+    font-weight: 700;
+    font-size: 0.78rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .assessment-help-outline-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    max-height: 242px;
+    overflow: auto;
+    padding-right: 0.2rem;
+  }
+
+  .assessment-help-outline-item {
+    border-radius: 4px;
+    padding: 0.25rem 0.36rem;
+    font-size: 0.73rem;
+    line-height: 1.25;
+    color: #7c2d12;
+    background: #fffbf5;
+    border: 1px solid #f4d2a4;
+    cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  .assessment-help-outline-item:hover {
+    background: #ffedd5;
+    border-color: #f59e0b;
+  }
+
+  .assessment-help-outline-item.is-active {
+    background: #fed7aa;
+    border-color: #f59e0b;
+    color: #8a2e0b;
+    font-weight: 700;
+  }
+
+  .assessment-help-detail-wrap {
+    flex: 0 0 70%;
+    max-width: 70%;
+    min-width: 0;
+  }
+
+  .assessment-help-hint-box {
+    border: 1px solid #f0b873;
+    border-radius: 6px;
+    background: #fff3df;
+    color: #9a3412;
     padding: 0.42rem 0.52rem;
     line-height: 1.35;
   }
 
   .assessment-help-wizard-modal .modal-footer {
-    border-top: 1px solid #cfdbeb;
-    background: #f4f8ff;
+    border-top: 1px solid #f3c78a;
+    background: #fff1dd;
     border-bottom-left-radius: 8px;
     border-bottom-right-radius: 8px;
     padding-top: 0.62rem;
@@ -694,27 +766,26 @@
   }
 
   .assessment-wizard-highlight {
-    position: relative;
     z-index: 1061;
-    outline: 3px solid rgba(43, 118, 229, 0.78);
+    outline: 3px solid rgba(230, 126, 34, 0.92);
     outline-offset: 3px;
-    box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+    box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
     border-radius: 0.4rem;
     animation: assessment-wizard-pulse 1200ms ease-in-out infinite;
   }
 
   @keyframes assessment-wizard-pulse {
     0% {
-      outline-color: rgba(43, 118, 229, 0.78);
-      box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+      outline-color: rgba(230, 126, 34, 0.88);
+      box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
     }
     50% {
-      outline-color: rgba(43, 118, 229, 0.92);
-      box-shadow: 0 0 0 11px rgba(43, 118, 229, 0.11);
+      outline-color: rgba(217, 119, 6, 0.98);
+      box-shadow: 0 0 0 11px rgba(245, 158, 11, 0.17);
     }
     100% {
-      outline-color: rgba(43, 118, 229, 0.78);
-      box-shadow: 0 0 0 8px rgba(43, 118, 229, 0.16);
+      outline-color: rgba(230, 126, 34, 0.88);
+      box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
     }
   }
 
@@ -748,6 +819,30 @@
       width: 110px;
       min-width: 110px;
     }
+
+    .assessment-help-layout {
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .assessment-help-outline-wrap,
+    .assessment-help-detail-wrap {
+      flex: 1 1 auto;
+      max-width: 100%;
+    }
+  }
+
+  #btnHelpWizardNext {
+    background: #ea7a14;
+    border-color: #d26809;
+    color: #fff;
+  }
+
+  #btnHelpWizardNext:hover,
+  #btnHelpWizardNext:focus-visible {
+    background: #cf680b;
+    border-color: #ba5b04;
+    color: #fff;
   }
 </style>
 @endpush
@@ -796,20 +891,13 @@
     urls: 'Provide URL(s) for the assessed dataset(s), aligned with the selected indicator/disaggregation.',
     remarks: 'Add supporting notes, clarifications, or context for the values entered in this row.',
   };
-  const helpWizardSteps = [
+  const helpWizardStepsBase = [
     {
       title: 'Header & Period Context',
       description: 'Check this area first to confirm period, reference year, form mode (editable/read-only), and selected country.',
       selector: '#formMeta',
       tab: 'entry',
       hint: 'Always verify this context before entering data.',
-    },
-    {
-      title: 'Upload/Export Tools',
-      description: 'Use Upload menu to download/upload template, and use Export to download current form values.',
-      selector: '#btnUploadMenu',
-      tab: 'entry',
-      hint: 'Template upload can overwrite values currently displayed on screen.',
     },
     {
       title: 'Entry Filters',
@@ -826,18 +914,25 @@
       hint: 'Useful for follow-up before save or submit.',
     },
     {
-      title: 'Assessment Entry Table',
-      description: 'Fill Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
-      selector: '.assessment-table',
-      tab: 'entry',
-      hint: 'Rows are scored automatically and summary updates in real time.',
-    },
-    {
       title: 'Row Navigator',
       description: 'Use Navigator to jump quickly to top, bottom, or a specific row from the Go To dialog.',
       selector: '#btnNavMain',
       tab: 'entry',
       hint: 'Best for large forms with many rows.',
+    },
+    {
+      title: 'Help Button',
+      description: 'Use Help button anytime to reopen this wizard and walk through the page guidance again.',
+      selector: '#btnHelpWizard',
+      tab: 'entry',
+      hint: 'This helps onboard new users and refresh workflow reminders.',
+    },
+    {
+      title: 'Assessment Entry Table',
+      description: 'Fill Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
+      selector: '.assessment-table',
+      tab: 'entry',
+      hint: 'Rows are scored automatically and summary updates in real time.',
     },
     {
       title: 'Summary Tab',
@@ -847,13 +942,154 @@
       hint: 'Use this as validation checkpoint after data entry.',
     },
     {
-      title: 'Save vs Submit',
-      description: 'Save stores draft changes. Submit marks the country assessment as submitted for the current period.',
+      title: 'Assessment Log',
+      description: 'Open Log tab to review timeline history of saves, submissions, and relevant activity notes.',
+      selector: '#logRows',
+      tab: 'log',
+      hint: 'Use this for audit trail and progress tracking.',
+    },
+    {
+      title: 'Upload Feature',
+      description: 'Use Upload menu to download template and upload prepared data mapped by assessment row code.',
+      selector: '#btnUploadMenu',
+      tab: 'entry',
+      hint: 'Uploading can update values in bulk, so verify data before saving.',
+    },
+    {
+      title: 'Save',
+      description: 'Use Save to store current changes as draft. You can continue editing after that and save again anytime for next updates.',
+      selector: '#btnSaveForm',
+      tab: 'entry',
+      hint: 'Save often while working so progress is not lost.',
+    },
+    {
+      title: 'Submit',
+      description: 'Submit stores the final assessment and marks the end of data entry. After submit, the assessment is locked and no further manual edits or template uploads are allowed.',
       selector: '#btnSubmitForm',
       tab: 'entry',
-      hint: 'Submit after all mandatory rows and evidence links are complete.',
+      hint: 'If revisions are needed after submit, contact ASEANstats to unlock it while the period is still Open.',
     },
   ];
+  let helpWizardSteps = [];
+
+  function buildHelpWizardSteps() {
+    const isEditable = !!pageState.editable;
+    const uploadBtn = document.getElementById('btnUploadMenu');
+    const saveBtn = document.getElementById('btnSaveForm');
+    const submitBtn = document.getElementById('btnSubmitForm');
+    const isUploadVisible = !!uploadBtn && uploadBtn.offsetParent !== null;
+    const isSaveVisible = !!saveBtn && saveBtn.offsetParent !== null;
+    const isSubmitVisible = !!submitBtn && submitBtn.offsetParent !== null;
+    const isUploadEnabled = !!uploadBtn && !uploadBtn.disabled;
+    const isSaveEnabled = !!saveBtn && !saveBtn.disabled;
+    const isSubmitEnabled = !!submitBtn && !submitBtn.disabled;
+
+    const includeUploadStep = isEditable && isUploadVisible && isUploadEnabled;
+    const includeSaveStep = isEditable && isSaveVisible && isSaveEnabled;
+    const includeSubmitStep = isEditable && isSubmitVisible && isSubmitEnabled;
+
+    helpWizardSteps = helpWizardStepsBase.filter((step) => {
+      if (step.selector === '#btnUploadMenu') return includeUploadStep;
+      if (step.selector === '#btnSaveForm') return includeSaveStep;
+      if (step.selector === '#btnSubmitForm') return includeSubmitStep;
+      return true;
+    });
+  }
+
+  function intersectionArea(rectA, rectB) {
+    const left = Math.max(rectA.left, rectB.left);
+    const right = Math.min(rectA.right, rectB.right);
+    const top = Math.max(rectA.top, rectB.top);
+    const bottom = Math.min(rectA.bottom, rectB.bottom);
+    const width = Math.max(0, right - left);
+    const height = Math.max(0, bottom - top);
+    return width * height;
+  }
+
+  function rectDistance(rectA, rectB) {
+    const dx = Math.max(rectB.left - rectA.right, rectA.left - rectB.right, 0);
+    const dy = Math.max(rectB.top - rectA.bottom, rectA.top - rectB.bottom, 0);
+    return Math.hypot(dx, dy);
+  }
+
+  function positionHelpWizardDialog(target = null) {
+    const dialog = document.querySelector('#helpWizardDialog .modal-dialog');
+    if (!dialog) return;
+
+    dialog.style.left = '';
+    dialog.style.right = '';
+    dialog.style.top = '';
+    dialog.style.bottom = '';
+
+    const dialogRect = dialog.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const edge = 12;
+    const width = Math.max(220, dialogRect.width || 420);
+    const height = Math.max(180, dialogRect.height || 260);
+
+    const placements = [];
+    const pushPlacement = (top, left) => {
+      placements.push({
+        top: Math.max(edge, Math.min(viewportHeight - height - edge, top)),
+        left: Math.max(edge, Math.min(viewportWidth - width - edge, left)),
+      });
+    };
+
+    let best = placements[0];
+    const targetRect = target?.getBoundingClientRect?.() || null;
+    const gap = 12;
+
+    if (targetRect) {
+      const centerX = targetRect.left + (targetRect.width / 2);
+      const centerY = targetRect.top + (targetRect.height / 2);
+      pushPlacement(targetRect.top, targetRect.right + gap);
+      pushPlacement(targetRect.top, targetRect.left - width - gap);
+      pushPlacement(targetRect.bottom + gap, centerX - (width / 2));
+      pushPlacement(targetRect.top - height - gap, centerX - (width / 2));
+      pushPlacement(centerY - (height / 2), targetRect.right + gap);
+      pushPlacement(centerY - (height / 2), targetRect.left - width - gap);
+    }
+
+    pushPlacement(edge, viewportWidth - width - edge);
+    pushPlacement(edge, edge);
+    pushPlacement(viewportHeight - height - edge, viewportWidth - width - edge);
+    pushPlacement(viewportHeight - height - edge, edge);
+
+    if (!placements.length) return;
+    best = placements[0];
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    const paddedTargetRect = targetRect
+      ? {
+          left: targetRect.left - 6,
+          top: targetRect.top - 6,
+          right: targetRect.right + 6,
+          bottom: targetRect.bottom + 6,
+        }
+      : null;
+
+    placements.forEach((candidate, index) => {
+      const candidateRect = {
+        left: candidate.left,
+        top: candidate.top,
+        right: candidate.left + width,
+        bottom: candidate.top + height,
+      };
+      const overlap = paddedTargetRect ? intersectionArea(candidateRect, paddedTargetRect) : 0;
+      const distance = paddedTargetRect ? rectDistance(candidateRect, paddedTargetRect) : 0;
+      const score = overlap > 0 ? (overlap * 10000) + distance + (index * 0.01) : distance + (index * 0.01);
+      if (score < bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    });
+
+    dialog.style.left = `${best.left}px`;
+    dialog.style.top = `${best.top}px`;
+    dialog.style.right = 'auto';
+    dialog.style.bottom = 'auto';
+  }
 
   function esc(value) {
     return String(value ?? '')
@@ -919,6 +1155,23 @@
     });
   }
 
+  function renderHelpWizardOutline(activeIndex = 0) {
+    const outlineEl = document.getElementById('helpWizardOutline');
+    if (!outlineEl) return;
+    outlineEl.innerHTML = helpWizardSteps.map((step, index) => {
+      const activeClass = index === activeIndex ? ' is-active' : '';
+      return `<div class="assessment-help-outline-item${activeClass}" data-step-index="${index}">${index + 1}. ${esc(step.title || 'Step')}</div>`;
+    }).join('');
+  }
+
+  function jumpHelpWizardStep(index) {
+    const nextIndex = Number(index);
+    if (!Number.isFinite(nextIndex)) return;
+    if (nextIndex < 0 || nextIndex >= helpWizardSteps.length) return;
+    helpWizardState.stepIndex = nextIndex;
+    renderHelpWizardStep();
+  }
+
   function activateAssessmentTab(tabName) {
     let tabId = 'entry-tab';
     if (tabName === 'summary') tabId = 'summary-tab';
@@ -975,6 +1228,7 @@
 
   function renderHelpWizardStep() {
     if (!helpWizardModal) return;
+    buildHelpWizardSteps();
     if (!helpWizardSteps.length) return;
 
     const maxIndex = helpWizardSteps.length - 1;
@@ -997,28 +1251,41 @@
     hintEl.textContent = step.hint || 'Focus area will be highlighted on the page.';
     prevBtn.disabled = safeIndex === 0;
     nextBtn.textContent = safeIndex === maxIndex ? 'Finish' : 'Next';
+    renderHelpWizardOutline(safeIndex);
 
     clearHelpWizardHighlight();
+    const immediateTarget = resolveHelpWizardTarget(step);
+    positionHelpWizardDialog(immediateTarget);
 
     window.setTimeout(() => {
       const target = resolveHelpWizardTarget(step);
       if (!target) {
         hintEl.textContent = 'Target area not available yet in current state.';
+        positionHelpWizardDialog(null);
         return;
       }
       target.classList.add('assessment-wizard-highlight');
       scrollHelpWizardTargetIntoView(target);
+      positionHelpWizardDialog(target);
+      window.setTimeout(() => positionHelpWizardDialog(target), 260);
     }, 180);
   }
 
   function openHelpWizard(startIndex = 0) {
     if (!helpWizardModal) return;
+    buildHelpWizardSteps();
+    if (!helpWizardSteps.length) return;
     helpWizardState.stepIndex = Number(startIndex) || 0;
     const dialogEl = document.getElementById('helpWizardDialog');
     if (dialogEl?.classList.contains('show')) {
       renderHelpWizardStep();
       return;
     }
+    const targetStep = helpWizardSteps[helpWizardState.stepIndex] || null;
+    activateAssessmentTab(targetStep?.tab || 'entry');
+    const target = resolveHelpWizardTarget(targetStep);
+    positionHelpWizardDialog(target);
+    dialogEl?.querySelector('.modal-dialog')?.classList.add('is-positioned');
     helpWizardModal.show();
   }
 
@@ -2579,14 +2846,21 @@
       helpWizardState.stepIndex += 1;
       renderHelpWizardStep();
     });
+    document.getElementById('helpWizardOutline')?.addEventListener('click', (event) => {
+      const item = event.target.closest('.assessment-help-outline-item[data-step-index]');
+      if (!item) return;
+      jumpHelpWizardStep(item.dataset.stepIndex);
+    });
     helpWizardDialogEl.addEventListener('shown.bs.modal', () => {
       releaseHelpWizardBodyLock();
+      helpWizardDialogEl.querySelector('.modal-dialog')?.classList.add('is-positioned');
       renderHelpWizardStep();
     });
     helpWizardDialogEl.addEventListener('hidden.bs.modal', () => {
       releaseHelpWizardBodyLock();
       clearHelpWizardHighlight();
       activateAssessmentTab('entry');
+      helpWizardDialogEl.querySelector('.modal-dialog')?.classList.remove('is-positioned');
     });
 
     uploadDropzone.addEventListener('click', () => uploadInput.click());
@@ -2617,6 +2891,11 @@
       const tbody = document.getElementById('detailRows');
       if (!tbody) return;
       syncSubScoreAlignment(tbody);
+      if (helpWizardDialogEl?.classList.contains('show')) {
+        const currentStep = helpWizardSteps[helpWizardState.stepIndex] || null;
+        const currentTarget = resolveHelpWizardTarget(currentStep);
+        positionHelpWizardDialog(currentTarget);
+      }
     });
   });
 </script>
