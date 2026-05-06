@@ -277,7 +277,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title mb-0">Assessment Form Help Wizard</h5>
+            <h5 class="modal-title mb-0">Quick Assistance</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
@@ -687,6 +687,18 @@
     padding-bottom: 0.8rem;
   }
 
+  .assessment-help-detail-link {
+    color: #1d4ed8;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .assessment-help-detail-link:hover,
+  .assessment-help-detail-link:focus-visible {
+    color: #1e40af;
+  }
+
   .assessment-help-layout {
     display: flex;
     gap: 0.7rem;
@@ -858,6 +870,7 @@
   let uploadTemplateFile = null;
   const TEMPLATE_TEXT_MAX_LENGTH = 3000;
   const HELP_WIZARD_STORAGE_KEY = 'od.trx.form.help_wizard_seen.v1';
+  const helpEntryDetailUrl = @json(route('help'));
   const helpWizardState = {
     stepIndex: 0,
   };
@@ -929,7 +942,9 @@
     },
     {
       title: 'Assessment Entry Table',
-      description: 'Fill Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
+      description: 'Fill Series, Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
+      detailLink: true,
+      detailTopic: 'entry',
       selector: '.assessment-table',
       tab: 'entry',
       hint: 'Rows are scored automatically and summary updates in real time.',
@@ -937,6 +952,8 @@
     {
       title: 'Summary Tab',
       description: 'Open Summary tab to review progress and weighted scores by section before final submission.',
+      detailLink: true,
+      detailTopic: 'summary',
       selector: '#summaryRows',
       tab: 'summary',
       hint: 'Use this as validation checkpoint after data entry.',
@@ -1247,7 +1264,14 @@
 
     stepMetaEl.textContent = `Step ${safeIndex + 1} of ${helpWizardSteps.length}`;
     titleEl.textContent = step.title || 'Help';
-    descEl.textContent = step.description || '';
+    if (step.detailLink) {
+      const text = esc(step.description || '');
+      const topic = encodeURIComponent(String(step.detailTopic || 'entry'));
+      const detailUrl = esc(`${helpEntryDetailUrl || '#'}?topic=${topic}`);
+      descEl.innerHTML = `${text} <a class="assessment-help-detail-link" href="${detailUrl}" target="_blank" rel="noopener noreferrer">See more detail</a>.`;
+    } else {
+      descEl.textContent = step.description || '';
+    }
     hintEl.textContent = step.hint || 'Focus area will be highlighted on the page.';
     prevBtn.disabled = safeIndex === 0;
     nextBtn.textContent = safeIndex === maxIndex ? 'Finish' : 'Next';
@@ -1955,9 +1979,9 @@
             </div>
             <div class="assessment-metric-rows mt-2">
               <div class="assessment-metric-row">
-                <div class="assessment-metric"><span>All</span><strong>${fmtNumber(r.count_all, 0)}</strong></div>
-                <div class="assessment-metric"><span>5</span><strong>${fmtNumber(r.count_5, 0)}</strong></div>
-                <div class="assessment-metric"><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="All: Total number of valid years entered in Series."><span>All</span><strong>${fmtNumber(r.count_all, 0)}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="5: Number of entered years that fall within the last 5 years based on reference year."><span>5</span><strong>${fmtNumber(r.count_5, 0)}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="10: Number of entered years that fall within the last 10 years based on reference year."><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
               </div>
               <div class="assessment-metric-row">
                 <div class="assessment-metric"><span>C1</span><strong>${c1Label}</strong></div>
