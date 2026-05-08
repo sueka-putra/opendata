@@ -55,8 +55,8 @@
 
         <nav class="od-menu">
             <p class="od-menu-section">Assessment</p>
-            <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="Histories">
-                <i class="fa-solid fa-chart-pie"></i><span>Histories</span>
+            <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
+                <i class="fa-solid fa-chart-pie"></i><span>Dashboard</span>
             </a>
             <a class="od-menu-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}" href="{{ route('profile.edit') }}" title="Profile">
                 <i class="fa-solid fa-user"></i><span>Profile</span>

@@ -37,16 +37,18 @@
 }
 
 .od-btn-primary {
-  border: 0;
+  border: 1px solid #0d6efd;
   color: #fff;
   font-weight: 700;
   border-radius: 8px;
-  background: rgb(140, 87, 255);
+  background: #0d6efd;
 }
 
 .od-btn-primary:hover {
+  background: #0b5ed7;
+  border-color: #0a58ca;
   box-shadow: 0px 0px 9px 2px rgba(33, 41, 74, 0.12);
-  filter: brightness(0.98);
+  filter: none;
 }
 
 .od-btn-outline {
@@ -307,13 +309,16 @@
 }
 
 .assessment-shell .od-btn-primary {
-  background: linear-gradient(135deg, #1f5fd8 0%, #45a1ff 100%);
+  background: #0d6efd;
+  border-color: #0d6efd;
   box-shadow: 0 6px 16px rgba(41, 113, 225, 0.22);
 }
 
 .assessment-shell .od-btn-primary:hover {
+  background: #0b5ed7;
+  border-color: #0a58ca;
   box-shadow: 0 8px 18px rgba(41, 113, 225, 0.3);
-  filter: saturate(1.04);
+  filter: none;
 }
 
 .assessment-shell .od-btn-primary:disabled {
@@ -412,14 +417,17 @@
   gap: 8px;
   padding: 10px 14px;
   color: #fff;
-  background: linear-gradient(135deg, #1f5fd8 0%, #45a1ff 100%);
+  background: #0d6efd;
+  border: 1px solid #0d6efd;
   box-shadow: 0 8px 22px rgba(41, 113, 225, 0.35);
   transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .assessment-fab-nav:hover {
+  background: #0b5ed7;
+  border-color: #0a58ca;
   transform: translateY(-1px);
-  filter: saturate(1.08);
+  filter: none;
   box-shadow:
     0 10px 26px rgba(41, 113, 225, 0.42),
     0 0 14px rgba(86, 171, 255, 0.65);

@@ -131,7 +131,7 @@
         <div class="period-table-card mb-3">
           <div class="period-table-toolbar d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <strong class="assessment-toolbar-title">Section Summary</strong>
-            <span class="text-muted small">&nbsp;</span>
+            <button class="btn btn-sm od-btn-outline" type="button" id="btnSummaryPrint">Print</button>
           </div>
           <div class="table-responsive">
             <table class="table period-table align-middle mb-0 assessment-summary-table">
@@ -662,21 +662,21 @@
   }
 
   .assessment-help-wizard-modal .modal-content {
-    border: 2px solid #d97706;
+    border: 2px solid #2563eb;
     border-radius: 8px;
-    box-shadow: 0 8px 22px rgba(180, 83, 9, 0.2);
-    background: #fffaf2;
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.2);
+    background: #f8fbff;
   }
 
   .assessment-help-wizard-modal .modal-header {
-    border-bottom: 1px solid #f3c78a;
-    background: #ffedd5;
+    border-bottom: 1px solid #bfdbfe;
+    background: #dbeafe;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
   }
 
   .assessment-help-wizard-modal .modal-title {
-    color: #9a3412;
+    color: #1d4ed8;
     font-size: 0.95rem;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -707,14 +707,14 @@
   .assessment-help-outline-wrap {
     flex: 0 0 30%;
     max-width: 30%;
-    border: 1px solid #f3c78a;
+    border: 1px solid #bfdbfe;
     border-radius: 6px;
-    background: #fff6ea;
+    background: #eff6ff;
     padding: 0.5rem;
   }
 
   .assessment-help-outline-title {
-    color: #9a3412;
+    color: #1d4ed8;
     font-weight: 700;
     font-size: 0.78rem;
     margin-bottom: 0.35rem;
@@ -734,22 +734,22 @@
     padding: 0.25rem 0.36rem;
     font-size: 0.73rem;
     line-height: 1.25;
-    color: #7c2d12;
-    background: #fffbf5;
-    border: 1px solid #f4d2a4;
+    color: #1e3a8a;
+    background: #f8fbff;
+    border: 1px solid #c7d2fe;
     cursor: pointer;
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
   }
 
   .assessment-help-outline-item:hover {
-    background: #ffedd5;
-    border-color: #f59e0b;
+    background: #e0ecff;
+    border-color: #60a5fa;
   }
 
   .assessment-help-outline-item.is-active {
-    background: #fed7aa;
-    border-color: #f59e0b;
-    color: #8a2e0b;
+    background: #bfdbfe;
+    border-color: #3b82f6;
+    color: #1e40af;
     font-weight: 700;
   }
 
@@ -760,44 +760,73 @@
   }
 
   .assessment-help-hint-box {
-    border: 1px solid #f0b873;
+    border: 1px solid #93c5fd;
     border-radius: 6px;
-    background: #fff3df;
-    color: #9a3412;
+    background: #eff6ff;
+    color: #1e3a8a;
     padding: 0.42rem 0.52rem;
     line-height: 1.35;
   }
 
   .assessment-help-wizard-modal .modal-footer {
-    border-top: 1px solid #f3c78a;
-    background: #fff1dd;
+    border-top: 1px solid #bfdbfe;
+    background: #eaf2ff;
     border-bottom-left-radius: 8px;
     border-bottom-right-radius: 8px;
     padding-top: 0.62rem;
     padding-bottom: 0.62rem;
   }
 
-  .assessment-wizard-highlight {
-    z-index: 1061;
-    outline: 3px solid rgba(230, 126, 34, 0.92);
-    outline-offset: 3px;
-    box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
-    border-radius: 0.4rem;
-    animation: assessment-wizard-pulse 1200ms ease-in-out infinite;
+  .assessment-help-wizard-modal #btnHelpWizardPrev {
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    background: #ffffff;
   }
 
-  @keyframes assessment-wizard-pulse {
+  .assessment-help-wizard-modal #btnHelpWizardPrev:hover,
+  .assessment-help-wizard-modal #btnHelpWizardPrev:focus-visible {
+    border-color: #1d4ed8;
+    color: #1e40af;
+    background: #eff6ff;
+  }
+
+  .assessment-help-wizard-modal #btnHelpWizardNext {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #ffffff;
+  }
+
+  .assessment-help-wizard-modal #btnHelpWizardNext:hover,
+  .assessment-help-wizard-modal #btnHelpWizardNext:focus-visible {
+    border-color: #1d4ed8;
+    background: #1d4ed8;
+    color: #ffffff;
+  }
+
+  .assessment-wizard-highlight {
+    z-index: 1061;
+    outline: 3px solid rgba(37, 99, 235, 0.95);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25);
+    border-radius: 0.4rem;
+    animation: assessment-wizard-blink 1400ms ease-in-out 4;
+  }
+
+  @keyframes assessment-wizard-blink {
     0% {
-      outline-color: rgba(230, 126, 34, 0.88);
-      box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
+      outline-color: rgba(37, 99, 235, 0.95);
+      box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25);
+      opacity: 1;
     }
     50% {
-      outline-color: rgba(217, 119, 6, 0.98);
-      box-shadow: 0 0 0 11px rgba(245, 158, 11, 0.17);
+      outline-color: rgba(29, 78, 216, 0.2);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.06);
+      opacity: 0.55;
     }
     100% {
-      outline-color: rgba(230, 126, 34, 0.88);
-      box-shadow: 0 0 0 8px rgba(230, 126, 34, 0.22);
+      outline-color: rgba(37, 99, 235, 0.95);
+      box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25);
+      opacity: 1;
     }
   }
 
@@ -845,16 +874,20 @@
   }
 
   #btnHelpWizardNext {
-    background: #ea7a14;
-    border-color: #d26809;
+    background: #2563eb;
+    border-color: #1d4ed8;
     color: #fff;
   }
 
   #btnHelpWizardNext:hover,
   #btnHelpWizardNext:focus-visible {
-    background: #cf680b;
-    border-color: #ba5b04;
+    background: #1d4ed8;
+    border-color: #1e40af;
     color: #fff;
+  }
+
+  #btnSummaryPrint {
+    background: #ffffff;
   }
 </style>
 @endpush
@@ -895,11 +928,14 @@
     },
   };
   const fieldTooltips = {
-    series: 'Coverage input. Use comma-separated years (for example: 2019,2020,2021) or NA for not applicable. Scoring: C1=1 if any year exists; C2=1 for at least 3 of last 5 years, 0.5 for 1-2 years, 0 for none; C3=1 for at least 6 of last 10 years, 0.5 for 3-5 years, 0 for 2 or fewer.',
-    machine_readability: 'O1 - Machine Readability. Score 1 if data is machine-readable (for example XLSX/CSV/JSON/XML/TXT), otherwise 0.',
-    proprietary: 'O2 - Non-Proprietary. Score 1 if data is available in non-proprietary formats (for example XLSX/CSV/XML/TXT/JSON), otherwise 0.',
+    series: 'Coverage input. Use comma-separated years (for example: 2019,2020,2021), year ranges, or NA if not applicable. Non-calendar year (for example 2012/2013) counts as 1 year, and overlapping entries must not be double-counted. Scoring: C1=1 if published data and required disaggregation are available, else 0. If C1=0 then C1-C3 and O1-O5 are 0. C2=1 for at least 3 of last 5 years, 0.5 for 1-2 years, 0 for none. C3=1 for at least 6 of last 10 years, 0.5 for 3-5 years, 0 for 2 or fewer.',
+    c1: 'C1 - Disaggregation Availability. Score 1 if published data and required disaggregation/breakdown are available; 0 if not available.',
+    c2: 'C2 - Availability of Data for Last 5 Years. Score 1 for at least 3 of the last 5 years, 0.5 for 1-2 years, and 0 if none.',
+    c3: 'C3 - Availability of Data for Last 10 Years. Score 1 for at least 6 of the last 10 years, 0.5 for 3-5 years, and 0 for 2 or fewer.',
+    machine_readability: 'O1 - Machine Readability. Score 1 if available in machine-readable format (XLSX/CSV/JSON/XML/TXT), otherwise 0. PDF tables and scanned text are not machine-readable.',
+    proprietary: 'O2 - Non-Proprietary. Score 1 if non-proprietary format is available (XLSX/CSV/XML/TXT/JSON), otherwise 0. XLS/Stata/SAS/SPSS/DOC/PPT are proprietary. ZIP does not reduce score; RAR-only gets 0.',
     download_options: 'O3 - Download Options. Score 1 if bulk download and API/user-selectable download are available; 0.5 if only one of those options exists; 0 if none.',
-    metadata: 'O4 - Metadata Availability. Score 1 if all required metadata fields are present; 0.5 if at least 5 fields are present; 0 if 4 or fewer.',
+    metadata: 'O4 - Metadata Availability. Score 1 if all required metadata fields are present; 0.5 if at least 5 fields are present; 0 if 4 or fewer. Required fields: definition, frequency, unit of measure, disaggregation level, data source, availability period, direct URL, download formats, and terms-of-use URL.',
     term_of_use: 'O5 - Terms of Use. Score 1 for open terms, 0.5 for semi-restrictive terms, 0 for restrictive/no terms.',
     urls: 'Provide URL(s) for the assessed dataset(s), aligned with the selected indicator/disaggregation.',
     remarks: 'Add supporting notes, clarifications, or context for the values entered in this row.',
@@ -1268,7 +1304,7 @@
       const text = esc(step.description || '');
       const topic = encodeURIComponent(String(step.detailTopic || 'entry'));
       const detailUrl = esc(`${helpEntryDetailUrl || '#'}?topic=${topic}`);
-      descEl.innerHTML = `${text} <a class="assessment-help-detail-link" href="${detailUrl}" target="_blank" rel="noopener noreferrer">See more detail</a>.`;
+      descEl.innerHTML = `${text} <a class="assessment-help-detail-link" href="${detailUrl}" target="odHelpWindow">See more detail</a>.`;
     } else {
       descEl.textContent = step.description || '';
     }
@@ -1807,6 +1843,7 @@
     const uploadBtn = document.getElementById('btnUploadMenu');
     const uploadWrap = uploadBtn?.closest('.dropdown');
     const exportBtn = document.getElementById('btnExportForm');
+    const summaryPrintBtn = document.getElementById('btnSummaryPrint');
     const saveBtn = document.getElementById('btnSaveForm');
     const submitBtn = document.getElementById('btnSubmitForm');
     const canExport = pageState.isAseanstatsStaff;
@@ -1817,6 +1854,7 @@
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = true;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -1843,6 +1881,7 @@
       if (uploadWrap) uploadWrap.style.display = isSubmitted ? 'none' : '';
       uploadBtn.disabled = isSubmitted;
       exportBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = isSubmitted ? 'none' : '';
       submitBtn.style.display = isSubmitted ? 'none' : '';
@@ -1856,6 +1895,7 @@
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -1915,6 +1955,138 @@
     `;
 
     tbody.innerHTML = `${sectionRowsHtml}${weightedRowHtml}`;
+  }
+
+  function fmtScore2(value) {
+    if (value === null || value === undefined || value === '') return '0.00';
+    const num = Number(value);
+    if (Number.isNaN(num)) return '0.00';
+    return num.toFixed(2);
+  }
+
+  function sanitizeFilePart(value) {
+    const raw = String(value || 'country');
+    const cleaned = raw.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    return cleaned || 'country';
+  }
+
+  function downloadSummaryPng(countryName, summaryRows, weightedScore) {
+    const rows = [...(Array.isArray(summaryRows) ? summaryRows : [])]
+      .sort((a, b) => Number(a.section_id || 0) - Number(b.section_id || 0));
+    if (!rows.length) {
+      odAlert('Summary is empty. Nothing to print.', 'Print Summary');
+      return;
+    }
+
+    const cols = [360, 140, 150, 155, 140, 150, 155, 120];
+    const pad = 18;
+    const topPad = 78;
+    const hHead1 = 62;
+    const hHead2 = 56;
+    const hRow = 54;
+    const hWeighted = 56;
+    const tableWidth = cols.reduce((a, b) => a + b, 0);
+    const tableHeight = hHead1 + hHead2 + (rows.length * hRow) + hWeighted;
+    const width = tableWidth + (pad * 2);
+    const height = topPad + tableHeight + 20;
+
+    const canvas = document.createElement('canvas');
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.textBaseline = 'middle';
+
+    const bg = '#ffffff';
+    const headA = '#ead8cb';
+    const headB = '#efccaf';
+    const weightedBg = '#e8ab7e';
+    const border = '#8c8c8c';
+    const titleColor = '#f2b300';
+    const text = '#111111';
+
+    function cell(x, y, w, h, fill, label, opts = {}) {
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w, h);
+      if (label !== undefined && label !== null) {
+        ctx.fillStyle = text;
+        ctx.font = `${opts.weight || 700} ${opts.size || 18}px "Segoe UI", Arial, sans-serif`;
+        ctx.textAlign = opts.align || 'center';
+        const tx = opts.align === 'left' ? x + 10 : opts.align === 'right' ? (x + w - 10) : (x + (w / 2));
+        const raw = String(label);
+        const lines = raw.includes('\n') ? raw.split('\n') : [raw];
+        const lineHeight = opts.lineHeight || Math.max(18, (opts.size || 18) + 4);
+        const startY = y + (h / 2) - ((lines.length - 1) * lineHeight / 2);
+        lines.forEach((line, idx) => {
+          ctx.fillText(line, tx, startY + (idx * lineHeight));
+        });
+      }
+    }
+
+    const x0 = pad;
+    const y0 = topPad;
+    const x = [x0];
+    for (let i = 0; i < cols.length; i += 1) x.push(x[i] + cols[i]);
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = titleColor;
+    ctx.font = '700 54px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`ACSS Open Data Score: ${countryName || '-'}`, width / 2, 36);
+
+    cell(x[0], y0, cols[0], hHead1 + hHead2, headA, 'Sections', { size: 24 });
+    cell(x[1], y0, cols[1] + cols[2] + cols[3], hHead1, headA, 'Coverage', { size: 24 });
+    cell(x[4], y0, cols[4] + cols[5] + cols[6], hHead1, headA, 'Opennes', { size: 24 });
+    cell(x[7], y0, cols[7], hHead1 + hHead2, headB, 'Overall\nScore', { size: 24, lineHeight: 28 });
+
+    cell(x[1], y0 + hHead1, cols[1], hHead2, headA, 'Max Score', { size: 22 });
+    cell(x[2], y0 + hHead1, cols[2], hHead2, headA, 'Actual Score', { size: 22 });
+    cell(x[3], y0 + hHead1, cols[3], hHead2, headB, 'Sub Score', { size: 22 });
+    cell(x[4], y0 + hHead1, cols[4], hHead2, headA, 'Max Score', { size: 22 });
+    cell(x[5], y0 + hHead1, cols[5], hHead2, headA, 'Actual Score', { size: 22 });
+    cell(x[6], y0 + hHead1, cols[6], hHead2, headB, 'Sub Score', { size: 22 });
+
+    let y = y0 + hHead1 + hHead2;
+    rows.forEach((r) => {
+      const fill = bg;
+      cell(x[0], y, cols[0], hRow, fill, r.section?.title || `Section ${r.section_id || ''}`, { size: 20, weight: 600, align: 'left' });
+      cell(x[1], y, cols[1], hRow, fill, fmtScore2(r.coverage_max_score), { size: 20, weight: 500, align: 'right' });
+      cell(x[2], y, cols[2], hRow, fill, fmtScore2(r.coverage_actual_score), { size: 20, weight: 500, align: 'right' });
+      cell(x[3], y, cols[3], hRow, fill, fmtScore2(r.coverage_sub_score_ratio), { size: 20, weight: 700, align: 'right' });
+      cell(x[4], y, cols[4], hRow, fill, fmtScore2(r.opennes_max_score), { size: 20, weight: 500, align: 'right' });
+      cell(x[5], y, cols[5], hRow, fill, fmtScore2(r.opennes_actual_score), { size: 20, weight: 500, align: 'right' });
+      cell(x[6], y, cols[6], hRow, fill, fmtScore2(r.opennes_sub_score_ratio), { size: 20, weight: 700, align: 'right' });
+      cell(x[7], y, cols[7], hRow, fill, fmtScore2(r.overall_score_ratio), { size: 20, weight: 700, align: 'right' });
+      y += hRow;
+    });
+
+    cell(x[0], y, cols[0], hWeighted, weightedBg, 'Weighted Score', { size: 22, weight: 700, align: 'left' });
+    cell(x[1], y, cols[1] + cols[2], hWeighted, weightedBg, 'Coverage weighted sub score:', { size: 18, weight: 700 });
+    cell(x[3], y, cols[3], hWeighted, weightedBg, fmtScore2(weightedScore?.coverage_sub_score_ratio), { size: 22, weight: 700, align: 'right' });
+    cell(x[4], y, cols[4] + cols[5], hWeighted, weightedBg, 'Opennes weighted sub score:', { size: 18, weight: 700 });
+    cell(x[6], y, cols[6], hWeighted, weightedBg, fmtScore2(weightedScore?.opennes_sub_score_ratio), { size: 22, weight: 700, align: 'right' });
+    cell(x[7], y, cols[7], hWeighted, weightedBg, fmtScore2(weightedScore?.overall_score_ratio), { size: 22, weight: 700, align: 'right' });
+
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `acss_open_data_score_${sanitizeFilePart(countryName)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function printCurrentSummary() {
+    const rows = Array.isArray(pageState.summary) ? pageState.summary : [];
+    const weighted = pageState.weightedScore || null;
+    const countryName = pageState.assessmentCountry?.country_name || pageState.assessmentCountry?.country_code || pageState.countryCode || 'Country';
+    downloadSummaryPng(countryName, rows, weighted);
   }
 
   function opennessSelect(field, value, rowId, options, disabled) {
@@ -1984,9 +2156,9 @@
                 <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="10: Number of entered years that fall within the last 10 years based on reference year."><span>10</span><strong>${fmtNumber(r.count_10, 0)}</strong></div>
               </div>
               <div class="assessment-metric-row">
-                <div class="assessment-metric"><span>C1</span><strong>${c1Label}</strong></div>
-                <div class="assessment-metric"><span>C2</span><strong>${c2Label}</strong></div>
-                <div class="assessment-metric"><span>C3</span><strong>${c3Label}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="${esc(fieldTooltips.c1)}"><span>C1</span><strong>${c1Label}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="${esc(fieldTooltips.c2)}"><span>C2</span><strong>${c2Label}</strong></div>
+                <div class="assessment-metric" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-custom-class="assessment-help-tooltip" title="${esc(fieldTooltips.c3)}"><span>C3</span><strong>${c3Label}</strong></div>
               </div>
             </div>
             <div class="assessment-score-footer">
@@ -2798,7 +2970,7 @@
     uploadResultModal = new bootstrap.Modal(document.getElementById('uploadResultDialog'));
     const helpWizardDialogEl = document.getElementById('helpWizardDialog');
     helpWizardModal = new bootstrap.Modal(helpWizardDialogEl, {
-      backdrop: false,
+      backdrop: 'static',
       focus: false,
       keyboard: true,
     });
@@ -2854,6 +3026,7 @@
     document.getElementById('btnExportForm').addEventListener('click', exportFormToExcel);
     document.getElementById('btnSaveForm').addEventListener('click', saveForm);
     document.getElementById('btnSubmitForm').addEventListener('click', submitForm);
+    document.getElementById('btnSummaryPrint').addEventListener('click', printCurrentSummary);
     document.getElementById('btnHelpWizard').addEventListener('click', () => {
       openHelpWizard(0);
     });

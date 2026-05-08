@@ -251,7 +251,7 @@
             <p class="brand-copy">
                 A dedicated platform for working groups to conduct the Open Data Self-Assessment and compute Open Data Scores across Coverage and Openness
             </p>
-            <ul class="benefits">
+            <ul class="benefits" style="display: none;">
                 <li><span class="check">v</span> Guaranteed Security</li>
                 <li><span class="check">v</span> Fast Access</li>
                 <li><span class="check">v</span> 24/7 Support</li>

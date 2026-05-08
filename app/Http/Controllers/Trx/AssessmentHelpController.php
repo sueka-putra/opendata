@@ -49,24 +49,28 @@ class AssessmentHelpController extends Controller
         return [
             'entry' => [
                 'title' => 'Entry form',
+                'description' => 'Guidance below follows sheet "Scoring Guideline" in ACSS Open Data Assessment workbook.',
+                'note_html' => 'For detail guideline, please download the file <a href="/templates/ACSS%20Open%20Data%20Assesment%20Tools.xlsx" target="_blank" rel="noopener">assessment template</a>.',
                 'sections' => [
                     [
                         'heading' => 'Series',
                         'paragraphs' => [
-                            'Series is the Coverage input. Fill years as comma-separated values (example: 2019,2020,2021) or use NA if the indicator is not applicable.',
+                            'Series is the Coverage input. Enter published years as comma-separated values (example: 2019,2020,2021) or use NA for indicators not applicable to the country.',
                             'Users can enter years with comma-separated values, year ranges with hyphen (example: 2018-2020), or a combination (example: 2016,2018-2020,2023).',
                             'When users leave the Series field, the input is normalized into comma-separated years, duplicates are removed, and years are sorted from smallest to largest.',
+                            'For non-calendar data (example: 2012/2013), count it as one year. Overlapping entries (example: 2013 and 2013/14) must not be double-counted.',
                         ],
                         'bullets' => [
-                            'C1 score: 1 if at least one valid year exists, otherwise 0.',
-                            'C2 score: 1 for at least 3 of last 5 years, 0.5 for 1-2 years, 0 for none.',
+                            'C1 score: 1 if published data and required disaggregation/breakdown are available, 0 if not available.',
+                            'C2 score: 1 for at least 3 of last 5 years, 0.5 for 1-2 years, 0 if none.',
                             'C3 score: 1 for at least 6 of last 10 years, 0.5 for 3-5 years, 0 for 2 or fewer.',
+                            'Important rule: If C1 is 0, all elements C1-C3 and O1-O5 are scored 0 for that indicator.',
                         ],
                     ],
                     [
                         'heading' => 'Coverage',
                         'paragraphs' => [
-                            'Coverage in this table is represented by Series-based scoring components.',
+                            'Coverage is represented by C1, C2, and C3 derived from Series and required disaggregation/breakdown availability.',
                         ],
                         'bullets' => [
                             'All: total number of valid years entered in Series.',
@@ -80,20 +84,20 @@ class AssessmentHelpController extends Controller
                     [
                         'heading' => 'Openness',
                         'paragraphs' => [
-                            'Openness is assessed through five elements.',
+                            'Openness is assessed through five elements (O1-O5) using data availability with required disaggregation/breakdown.',
                         ],
                         'bullets' => [
-                            'O1 Machine Readability: 1 for machine-readable formats (XLSX/CSV/JSON/XML/TXT), else 0.',
-                            'O2 Non-Proprietary: 1 when non-proprietary format is available, else 0.',
+                            'O1 Machine Readability: 1 if available in machine-readable format (XLSX/CSV/TXT/JSON/XML); 0 otherwise. PDF tables and scanned text are not machine-readable.',
+                            'O2 Non-Proprietary: 1 if available in non-proprietary format (XLSX/CSV/XML/TXT/JSON); 0 otherwise. XLS/Stata/SAS/SPSS/DOC/PPT are proprietary. ZIP does not reduce score; RAR-only gets 0.',
                             'O3 Download Options: 1 if both bulk and API/user-selectable download exist, 0.5 if only one exists, 0 if none.',
-                            'O4 Metadata Availability: 1 if all required metadata fields are present, 0.5 if at least 5 fields, 0 if 4 or fewer.',
-                            'O5 Terms of Use: 1 for open terms, 0.5 for semi-restrictive terms, 0 for restrictive/no terms.',
+                            'O4 Metadata Availability: 1 if all required metadata fields are present, 0.5 if at least 5 fields, 0 if 4 or fewer. Required fields include: definition, frequency, unit, disaggregation level, data source, availability period, direct URL, download formats, and terms-of-use URL.',
+                            'O5 Terms of Use: 1 for open, 0.5 for semi-restrictive, 0 for restrictive/no terms.',
                         ],
                     ],
                     [
                         'heading' => 'URL (Evidence & Notes)',
                         'paragraphs' => [
-                            'Provide dataset link(s) used for assessment in the URL/Evidence field.',
+                            'Provide dataset link(s) and supporting notes used for assessment. Assessment is based on data availability on the NSO website or linked line-ministry sources.',
                         ],
                         'bullets' => [
                             'Use direct and accessible links when possible.',
