@@ -1,4 +1,13 @@
 <section>
+    @php
+        $isAseanstatsUser = (string) ($user->country_code ?? '') === '00';
+        $showPlainIdentity = !$isAdmin && !$isAseanstatsUser;
+        $countryLabel = collect($countryOptions)->firstWhere('code', (string) ($user->country_code ?? ''));
+        $countryDisplay = $countryLabel
+            ? ((string) ($countryLabel['name'] ?? '-') ?: '-')
+            : ((string) ($user->country_code ?? '-') ?: '-');
+    @endphp
+
     <header class="mb-3">
         <h2 class="h6 mb-1 profile-section-title">Profile Information</h2>
         <p class="mb-0 profile-section-subtitle">Update user identity fields.</p>
@@ -15,32 +24,40 @@
         <div class="row g-3 mb-3">
             <div class="col-md-6">
                 <label class="form-label profile-form-label" for="email">Email</label>
-                <input
-                    id="email"
-                    type="email"
-                    class="form-control @error('email') is-invalid @enderror"
-                    value="{{ $user->email }}"
-                    readonly
-                    disabled
-                >
+                @if($showPlainIdentity)
+                    <div class="pt-2">{{ $user->email ?: '-' }}</div>
+                @else
+                    <input
+                        id="email"
+                        type="email"
+                        class="form-control @error('email') is-invalid @enderror"
+                        value="{{ $user->email }}"
+                        readonly
+                        disabled
+                    >
+                @endif
                 @error('email')
                     <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
             </div>
             <div class="col-md-6">
                 <label class="form-label profile-form-label" for="country_code">Country</label>
-                <select
-                    id="country_code"
-                    name="country_code"
-                    class="form-select @error('country_code') is-invalid @enderror"
-                    @disabled(!$isAdmin)
-                >
-                    @foreach($countryOptions as $country)
-                        <option value="{{ $country['code'] }}" @selected(old('country_code', $user->country_code) === $country['code'])>
-                            {{ $country['code'] }} {{ $country['name'] }}
-                        </option>
-                    @endforeach
-                </select>
+                @if($showPlainIdentity)
+                    <div class="pt-2">{{ $countryDisplay }}</div>
+                @else
+                    <select
+                        id="country_code"
+                        name="country_code"
+                        class="form-select @error('country_code') is-invalid @enderror"
+                        @disabled(!$isAdmin)
+                    >
+                        @foreach($countryOptions as $country)
+                            <option value="{{ $country['code'] }}" @selected(old('country_code', $user->country_code) === $country['code'])>
+                                {{ $country['code'] }} {{ $country['name'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                @endif
                 @error('country_code')
                     <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
