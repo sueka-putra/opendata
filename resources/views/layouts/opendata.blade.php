@@ -34,7 +34,7 @@
                 <i class="fa-solid fa-bars"></i>
             </button>
             <a class="od-brand" href="{{ route('dashboard') }}">
-                <img src="{{ asset('img/ASEANstats.jpg') }}" alt="ASEANstats">
+                <img src="{{ asset('img/ASEANStats.jpg') }}" alt="ASEANstats">
             </a>
         </div>
     </div>
