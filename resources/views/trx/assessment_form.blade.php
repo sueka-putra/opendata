@@ -1446,6 +1446,18 @@
       const fiscalMatch = part.match(/^(\d{4})\s*\/\s*(\d{4})$/);
       if (fiscalMatch) {
         years.push(Math.max(Number(fiscalMatch[1]), Number(fiscalMatch[2])));
+        continue;
+      }
+
+      const fiscalShortMatch = part.match(/^(\d{4})\s*\/\s*(\d{2})$/);
+      if (fiscalShortMatch) {
+        const startYear = Number(fiscalShortMatch[1]);
+        const endTwoDigits = Number(fiscalShortMatch[2]);
+        let endYear = (Math.floor(startYear / 100) * 100) + endTwoDigits;
+        if (endYear < startYear) {
+          endYear += 100;
+        }
+        years.push(Math.max(startYear, endYear));
       }
     }
 

@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Models\AssessmentCountry;
 use App\Models\AssessmentSummary;
-use App\Models\Section;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ScoreService
@@ -50,6 +48,18 @@ class ScoreService
             // Handle fiscal-like tokens, e.g. 2012/2013, count as one year.
             if (preg_match('/^(\d{4})\s*\/\s*(\d{4})$/', $p, $m)) {
                 $years[] = max((int) $m[1], (int) $m[2]);
+                continue;
+            }
+
+            // Handle short fiscal tokens, e.g. 2015/16, count as one year (2016).
+            if (preg_match('/^(\d{4})\s*\/\s*(\d{2})$/', $p, $m)) {
+                $startYear = (int) $m[1];
+                $endTwoDigits = (int) $m[2];
+                $endYear = ((int) floor($startYear / 100) * 100) + $endTwoDigits;
+                if ($endYear < $startYear) {
+                    $endYear += 100;
+                }
+                $years[] = max($startYear, $endYear);
             }
         }
         $years = array_values(array_unique($years));
@@ -115,6 +125,8 @@ class ScoreService
         $rows = DB::table('od_trx_assessment_country_rows as cr')
             ->join('od_mst_configuration_rows as cfg', 'cr.row_id', '=', 'cfg.id')
             ->select([
+                'cr.id',
+                'cr.row_id',
                 'cfg.section_id',
                 'cr.series',
                 'cr.machine_readability',
@@ -126,32 +138,58 @@ class ScoreService
             ->where('cr.assessment_country_id', $assessmentCountry->id)
             ->get();
 
-        $bySection = collect($rows)->groupBy('section_id');
+        $rowsWithScores = collect($rows)->map(function ($row) use ($referenceYear) {
+            $cov = self::computeRowCoverage((string) $row->series, $referenceYear);
+            $openness = $cov['is_na'] ? null : self::computeRowOpenness((array) $row);
+
+            return [
+                'id' => (int) $row->id,
+                'row_id' => (int) $row->row_id,
+                'section_id' => (int) $row->section_id,
+                'count_all' => $cov['count_all'],
+                'count_5' => $cov['count_5'],
+                'count_10' => $cov['count_10'],
+                'c1' => $cov['c1'],
+                'c2' => $cov['c2'],
+                'c3' => $cov['c3'],
+                'coverage_sub_score' => $cov['is_na'] ? 0.0 : (float) $cov['c'],
+                'opennes_sub_score' => $cov['is_na'] ? 0.0 : (float) $openness,
+                'is_na' => (bool) $cov['is_na'],
+            ];
+        })->values();
+
+        $bySection = $rowsWithScores->groupBy('section_id');
         $summaries = [];
 
-        DB::transaction(function () use ($assessmentCountry, $bySection, &$summaries, $referenceYear) {
+        DB::transaction(function () use ($assessmentCountry, $rowsWithScores, $bySection, &$summaries) {
+            // Persist row-level derived scores.
+            foreach ($rowsWithScores as $row) {
+                DB::table('od_trx_assessment_country_rows')
+                    ->where('id', $row['id'])
+                    ->update([
+                        'count_all' => $row['count_all'],
+                        'count_5' => $row['count_5'],
+                        'count_10' => $row['count_10'],
+                        'c1' => $row['c1'],
+                        'c2' => $row['c2'],
+                        'c3' => $row['c3'],
+                        'coverage_sub_score' => $row['coverage_sub_score'],
+                        'opennes_sub_score' => $row['opennes_sub_score'],
+                    ]);
+            }
+
             // Clear existing
             AssessmentSummary::where('assessment_country_id', $assessmentCountry->id)->delete();
 
             foreach ($bySection as $sectionId => $sectionRows) {
-                $eligible = $sectionRows->filter(function ($r) {
-                    return strtoupper(trim((string) $r->series)) !== 'NA';
-                });
+                $eligible = $sectionRows->filter(fn ($r) => !$r['is_na']);
                 $nEligible = $eligible->count();
 
                 $coverageMax = $nEligible * 3;
                 $opennessMax = $nEligible * 5;
 
-                $coverageActual = 0;
-                $opennessActual = 0;
-
-                foreach ($sectionRows as $r) {
-                    $cov = self::computeRowCoverage((string) $r->series, $referenceYear);
-                    if (!$cov['is_na']) {
-                        $coverageActual += (float) $cov['c'];
-                        $opennessActual += self::computeRowOpenness((array) $r);
-                    }
-                }
+                $coverageActual = (float) $eligible->sum(fn ($r) => (float) ($r['coverage_sub_score'] ?? 0));
+                $opennessActual = (float) $eligible->sum(fn ($r) => (float) ($r['opennes_sub_score'] ?? 0));
 
                 $coverageRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
                 $opennessRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
@@ -175,32 +213,29 @@ class ScoreService
                 $summaries[] = $rec;
             }
 
-            // Weighted (optional persist)
-            $weightedSectionId = config('opendata.weighted_section_id');
-            if ($weightedSectionId) {
-                $sectionCount = $bySection->keys()->count();
-                if ($sectionCount > 0) {
-                    $weightedCoverage = 0;
-                    $weightedOpenness = 0;
-                    foreach ($summaries as $s) {
-                        $weightedCoverage += ($s->coverage_sub_score / $sectionCount);
-                        $weightedOpenness += ($s->opennes_sub_score / $sectionCount);
-                    }
-                    $weightedOverall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
-
-                    AssessmentSummary::create([
-                        'assessment_country_id' => $assessmentCountry->id,
-                        'section_id' => (int) $weightedSectionId,
-                        'coverage_max_score' => 0,
-                        'coverage_actual_score' => 0,
-                        'coverage_sub_score' => round($weightedCoverage, 2),
-                        'opennes_max_score' => 0,
-                        'opennes_actual_score' => 0,
-                        'opennes_sub_score' => round($weightedOpenness, 2),
-                        'overall_score' => round($weightedOverall, 2),
-                    ]);
+            // Persist weighted score as section_id = 0.
+            $sectionCount = count($summaries);
+            $weightedCoverage = 0.0;
+            $weightedOpenness = 0.0;
+            if ($sectionCount > 0) {
+                foreach ($summaries as $s) {
+                    $weightedCoverage += ((float) $s->coverage_sub_score / $sectionCount);
+                    $weightedOpenness += ((float) $s->opennes_sub_score / $sectionCount);
                 }
             }
+            $weightedOverall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
+
+            AssessmentSummary::create([
+                'assessment_country_id' => $assessmentCountry->id,
+                'section_id' => 0,
+                'coverage_max_score' => 0,
+                'coverage_actual_score' => 0,
+                'coverage_sub_score' => round($weightedCoverage, 2),
+                'opennes_max_score' => 0,
+                'opennes_actual_score' => 0,
+                'opennes_sub_score' => round($weightedOpenness, 2),
+                'overall_score' => round($weightedOverall, 2),
+            ]);
         });
 
         return $summaries;

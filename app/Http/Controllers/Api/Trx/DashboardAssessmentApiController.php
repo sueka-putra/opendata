@@ -82,8 +82,6 @@ class DashboardAssessmentApiController extends Controller
             ]);
 
         $assessmentCountryIds = $baseRows->pluck('assessment_country_id')->map(fn ($id) => (int) $id)->values();
-        $weightedSectionId = (int) config('opendata.weighted_section_id', 0);
-
         $summaryByCountry = collect();
         $sectionScoresByCountry = collect();
         $progressByCountry = collect();
@@ -94,25 +92,17 @@ class DashboardAssessmentApiController extends Controller
                 ->get([
                     's.assessment_country_id',
                     's.section_id',
-                    's.coverage_max_score',
-                    's.coverage_actual_score',
-                    's.opennes_max_score',
-                    's.opennes_actual_score',
+                    's.coverage_sub_score',
+                    's.opennes_sub_score',
+                    's.overall_score',
                     'ms.title as section_title',
                 ]);
 
             $summaryByCountry = $summaryRows
                 ->groupBy('assessment_country_id')
-                ->map(function ($rows) use ($weightedSectionId) {
-                    $baseRows = collect($rows)->filter(function ($r) use ($weightedSectionId) {
-                        if ($weightedSectionId <= 0) {
-                            return true;
-                        }
-                        return (int) ($r->section_id ?? 0) !== $weightedSectionId;
-                    })->values();
-
-                    $sectionCount = $baseRows->count();
-                    if ($sectionCount === 0) {
+                ->map(function ($rows) {
+                    $weighted = collect($rows)->first(fn ($r) => (int) ($r->section_id ?? 0) === 0);
+                    if (!$weighted) {
                         return [
                             'coverage_sub_score_ratio' => 0,
                             'opennes_sub_score_ratio' => 0,
@@ -120,54 +110,24 @@ class DashboardAssessmentApiController extends Controller
                         ];
                     }
 
-                    $coverageSum = 0.0;
-                    $opennessSum = 0.0;
-                    foreach ($baseRows as $row) {
-                        $coverageMax = (float) ($row->coverage_max_score ?? 0);
-                        $coverageActual = (float) ($row->coverage_actual_score ?? 0);
-                        $opennessMax = (float) ($row->opennes_max_score ?? 0);
-                        $opennessActual = (float) ($row->opennes_actual_score ?? 0);
-
-                        $coverageSum += $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
-                        $opennessSum += $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
-                    }
-
-                    $weightedCoverage = $coverageSum / $sectionCount;
-                    $weightedOpenness = $opennessSum / $sectionCount;
-                    $overall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
-
                     return [
-                        'coverage_sub_score_ratio' => round($weightedCoverage, 6),
-                        'opennes_sub_score_ratio' => round($weightedOpenness, 6),
-                        'overall_score_ratio' => round($overall, 6),
+                        'coverage_sub_score_ratio' => round(((float) ($weighted->coverage_sub_score ?? 0)) / 100, 6),
+                        'opennes_sub_score_ratio' => round(((float) ($weighted->opennes_sub_score ?? 0)) / 100, 6),
+                        'overall_score_ratio' => round(((float) ($weighted->overall_score ?? 0)) / 100, 6),
                     ];
                 });
 
             $sectionScoresByCountry = $summaryRows
                 ->groupBy('assessment_country_id')
-                ->map(function ($rows) use ($weightedSectionId) {
+                ->map(function ($rows) {
                     return collect($rows)
-                        ->filter(function ($row) use ($weightedSectionId) {
-                            if ($weightedSectionId <= 0) {
-                                return true;
-                            }
-
-                            return (int) ($row->section_id ?? 0) !== $weightedSectionId;
-                        })
+                        ->filter(fn ($row) => (int) ($row->section_id ?? 0) !== 0)
                         ->map(function ($row) {
-                            $coverageMax = (float) ($row->coverage_max_score ?? 0);
-                            $coverageActual = (float) ($row->coverage_actual_score ?? 0);
-                            $opennessMax = (float) ($row->opennes_max_score ?? 0);
-                            $opennessActual = (float) ($row->opennes_actual_score ?? 0);
-
-                            $coverageRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
-                            $opennessRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
-
                             return [
                                 'section_id' => (int) ($row->section_id ?? 0),
                                 'section_title' => (string) ($row->section_title ?? ('Section ' . (int) ($row->section_id ?? 0))),
-                                'coverage_sub_score_ratio' => round($coverageRatio, 6),
-                                'opennes_sub_score_ratio' => round($opennessRatio, 6),
+                                'coverage_sub_score_ratio' => round(((float) ($row->coverage_sub_score ?? 0)) / 100, 6),
+                                'opennes_sub_score_ratio' => round(((float) ($row->opennes_sub_score ?? 0)) / 100, 6),
                             ];
                         })
                         ->sortBy('section_id')

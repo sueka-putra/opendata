@@ -123,6 +123,14 @@ class FormApiController extends Controller
                 'cr.term_of_use',
                 'cr.urls',
                 'cr.remarks',
+                'cr.count_all',
+                'cr.count_5',
+                'cr.count_10',
+                'cr.c1',
+                'cr.c2',
+                'cr.c3',
+                'cr.coverage_sub_score',
+                'cr.opennes_sub_score',
             ])
             ->where('p.id', $periodId)
             ->where('ac.country_code', $countryCode)
@@ -131,7 +139,7 @@ class FormApiController extends Controller
         $detail = $detailQuery
             ->orderBy('cfg.seq_no')
             ->get()
-            ->map(function ($r) use ($period, $isAseanstatsStaff) {
+            ->map(function ($r) use ($isAseanstatsStaff) {
                 $isRestricted = ((int) ($r->aseanstats_only ?? 0) === 1);
                 if ($isRestricted && !$isAseanstatsStaff) {
                     $r->series = 'NA';
@@ -141,17 +149,30 @@ class FormApiController extends Controller
                     $r->metadata = -1;
                     $r->term_of_use = -1;
                 }
-                $cov = ScoreService::computeRowCoverage((string) $r->series, (int) $period->year);
-                $o = ScoreService::computeRowOpenness((array) $r);
+
+                $isSeriesNa = strtoupper(trim((string) ($r->series ?? ''))) === 'NA';
+                if ($isSeriesNa) {
+                    $r->machine_readability = -1;
+                    $r->proprietary = -1;
+                    $r->download_options = -1;
+                    $r->metadata = -1;
+                    $r->term_of_use = -1;
+                    $r->count_all = null;
+                    $r->count_5 = null;
+                    $r->count_10 = null;
+                    $r->c1 = null;
+                    $r->c2 = null;
+                    $r->c3 = null;
+                    $r->coverage_sub_score = 0;
+                    $r->opennes_sub_score = 0;
+                }
+
+                $coverageSub = $r->coverage_sub_score;
+                $opennessSub = $r->opennes_sub_score;
+
                 return array_merge((array) $r, [
-                    'count_all' => $cov['count_all'],
-                    'count_5' => $cov['count_5'],
-                    'count_10' => $cov['count_10'],
-                    'c1' => $cov['c1'],
-                    'c2' => $cov['c2'],
-                    'c3' => $cov['c3'],
-                    'c' => $cov['c'],
-                    'o' => $cov['is_na'] ? null : $o,
+                    'c' => $coverageSub !== null ? (float) $coverageSub : 0.0,
+                    'o' => $opennessSub !== null ? (float) $opennessSub : 0.0,
                 ]);
             });
 
@@ -159,13 +180,8 @@ class FormApiController extends Controller
             ->where('assessment_country_id', $ac->id)
             ->get();
 
-        $weightedSectionId = config('opendata.weighted_section_id');
-        $summaryBase = $summaryCollection->filter(function ($s) use ($weightedSectionId) {
-            if (!$weightedSectionId) {
-                return true;
-            }
-            return (int) $s->section_id !== (int) $weightedSectionId;
-        })->values();
+        $summaryBase = $summaryCollection->filter(fn ($s) => (int) $s->section_id !== 0)->values();
+        $weightedSummary = $summaryCollection->first(fn ($s) => (int) $s->section_id === 0);
 
         $detailBySection = collect($detail)->groupBy(fn ($r) => (string) ($r['section_id'] ?? ''));
         $progressMap = $detailBySection->map(function ($rows) {
@@ -203,12 +219,8 @@ class FormApiController extends Controller
                 'progress' => 0,
             ]);
 
-            $coverageMax = (float) $s->coverage_max_score;
-            $coverageActual = (float) $s->coverage_actual_score;
-            $opennessMax = (float) $s->opennes_max_score;
-            $opennessActual = (float) $s->opennes_actual_score;
-            $coverageSubRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
-            $opennessSubRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
+            $coverageSubRatio = ((float) $s->coverage_sub_score) / 100;
+            $opennessSubRatio = ((float) $s->opennes_sub_score) / 100;
             $overallRatio = (0.5 * $coverageSubRatio) + (0.5 * $opennessSubRatio);
 
             return array_merge($s->toArray(), $progress, [
@@ -218,22 +230,9 @@ class FormApiController extends Controller
             ]);
         })->values();
 
-        $sectionCount = $summaryBase->count();
-        $weightedCoverage = 0.0;
-        $weightedOpenness = 0.0;
-        if ($sectionCount > 0) {
-            foreach ($summaryBase as $s) {
-                $coverageMax = (float) $s->coverage_max_score;
-                $coverageActual = (float) $s->coverage_actual_score;
-                $opennessMax = (float) $s->opennes_max_score;
-                $opennessActual = (float) $s->opennes_actual_score;
-                $weightedCoverage += ($coverageMax > 0 ? ($coverageActual / $coverageMax) : 0);
-                $weightedOpenness += ($opennessMax > 0 ? ($opennessActual / $opennessMax) : 0);
-            }
-            $weightedCoverage = $weightedCoverage / $sectionCount;
-            $weightedOpenness = $weightedOpenness / $sectionCount;
-        }
-        $weightedOverall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
+        $weightedCoverage = $weightedSummary ? (((float) $weightedSummary->coverage_sub_score) / 100) : 0;
+        $weightedOpenness = $weightedSummary ? (((float) $weightedSummary->opennes_sub_score) / 100) : 0;
+        $weightedOverall = $weightedSummary ? (((float) $weightedSummary->overall_score) / 100) : ((0.5 * $weightedCoverage) + (0.5 * $weightedOpenness));
 
         return $this->ok([
             'period' => [
@@ -389,9 +388,12 @@ class FormApiController extends Controller
                 }
 
                 DB::table('od_trx_assessment_country_rows')
-                    ->where('assessment_country_id', $ac->id)
-                    ->where('row_id', $rowId)
-                    ->update([
+                    ->updateOrInsert(
+                        [
+                            'assessment_country_id' => $ac->id,
+                            'row_id' => $rowId,
+                        ],
+                        [
                         'series' => $series,
                         'machine_readability' => $machineReadability,
                         'proprietary' => $proprietary,
@@ -400,7 +402,8 @@ class FormApiController extends Controller
                         'term_of_use' => $termOfUse,
                         'urls' => $urls,
                         'remarks' => $remarks,
-                    ]);
+                        ]
+                    );
             }
 
             // mark as modified
@@ -504,9 +507,12 @@ class FormApiController extends Controller
                 }
 
                 DB::table('od_trx_assessment_country_rows')
-                    ->where('assessment_country_id', $ac->id)
-                    ->where('row_id', $rowId)
-                    ->update([
+                    ->updateOrInsert(
+                        [
+                            'assessment_country_id' => $ac->id,
+                            'row_id' => $rowId,
+                        ],
+                        [
                         'series' => $series,
                         'machine_readability' => $machineReadability,
                         'proprietary' => $proprietary,
@@ -515,7 +521,8 @@ class FormApiController extends Controller
                         'term_of_use' => $termOfUse,
                         'urls' => $urls,
                         'remarks' => $remarks,
-                    ]);
+                        ]
+                    );
                 $matched++;
             }
 

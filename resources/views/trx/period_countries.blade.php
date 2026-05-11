@@ -106,6 +106,9 @@
         <td>${fmtRatio(row.overall_score_ratio)}</td>
         <td class="text-muted small">${fmtDateTime(row.modified_date)}</td>
         <td class="text-end">
+          ${(isOpen && (row.is_submitted === true || row.is_submitted === 1 || row.is_submitted === '1'))
+            ? `<button class="btn btn-sm btn-outline-warning me-1 btn-unlock-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Unlock</button>`
+            : ''}
           <button class="btn btn-sm btn-outline-primary me-1 btn-print-country" type="button" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Print</button>
           <a class="btn btn-sm btn-outline-dark" href="/trx/form?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(row.country_code)}">${isOpen ? 'Open' : 'View'}</a>
         </td>
@@ -270,6 +273,29 @@
     }
   }
 
+  async function unlockCountry(assessmentCountryId, countryName, btn) {
+    if (!assessmentCountryId) return;
+    const ok = window.confirm(`Unlock submission for ${countryName || 'this country'}?`);
+    if (!ok) return;
+
+    const original = btn?.innerHTML || 'Unlock';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = 'Unlocking...';
+    }
+
+    try {
+      await odFetch(`/api/trx/countries/${encodeURIComponent(assessmentCountryId)}/unlock`, { method: 'POST' });
+      await loadCountries();
+    } catch (err) {
+      odAlert(err?.message || 'Failed to unlock submission.', 'Unlock');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+  }
+
   async function loadCountries() {
     const tbody = document.getElementById('tbCountries');
     tbody.innerHTML = '<tr><td colspan="9" class="text-muted">Loading...</td></tr>';
@@ -289,6 +315,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnRefreshCountries').addEventListener('click', loadCountries);
     document.getElementById('tbCountries').addEventListener('click', (event) => {
+      const unlockBtn = event.target.closest('.btn-unlock-country');
+      if (unlockBtn) {
+        unlockCountry(unlockBtn.dataset.countryId || '', unlockBtn.dataset.countryName || '', unlockBtn);
+        return;
+      }
       const btn = event.target.closest('.btn-print-country');
       if (!btn) return;
       printCountrySummary(btn.dataset.countryCode || '', btn.dataset.countryName || '', btn);

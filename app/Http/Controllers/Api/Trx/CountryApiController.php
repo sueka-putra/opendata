@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\JsonEnvelope;
 use App\Models\AssessmentCountry;
 use App\Models\AssessmentPeriod;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -51,8 +52,6 @@ class CountryApiController extends Controller
     {
         $period = AssessmentPeriod::with('countries.country')->findOrFail($periodId);
         $countryIds = $period->countries->pluck('id')->map(fn ($id) => (int) $id)->values();
-        $weightedSectionId = (int) config('opendata.weighted_section_id', 0);
-
         $summaryByCountry = collect();
         $progressByCountry = collect();
 
@@ -62,22 +61,14 @@ class CountryApiController extends Controller
                 ->get([
                     'assessment_country_id',
                     'section_id',
-                    'coverage_max_score',
-                    'coverage_actual_score',
-                    'opennes_max_score',
-                    'opennes_actual_score',
+                    'coverage_sub_score',
+                    'opennes_sub_score',
+                    'overall_score',
                 ])
                 ->groupBy('assessment_country_id')
-                ->map(function ($rows) use ($weightedSectionId) {
-                    $baseRows = collect($rows)->filter(function ($r) use ($weightedSectionId) {
-                        if ($weightedSectionId <= 0) {
-                            return true;
-                        }
-                        return (int) ($r->section_id ?? 0) !== $weightedSectionId;
-                    })->values();
-
-                    $sectionCount = $baseRows->count();
-                    if ($sectionCount === 0) {
+                ->map(function ($rows) {
+                    $weighted = collect($rows)->first(fn ($r) => (int) ($r->section_id ?? 0) === 0);
+                    if (!$weighted) {
                         return [
                             'coverage_sub_score_ratio' => 0,
                             'opennes_sub_score_ratio' => 0,
@@ -85,26 +76,10 @@ class CountryApiController extends Controller
                         ];
                     }
 
-                    $coverageSum = 0.0;
-                    $opennessSum = 0.0;
-                    foreach ($baseRows as $row) {
-                        $coverageMax = (float) ($row->coverage_max_score ?? 0);
-                        $coverageActual = (float) ($row->coverage_actual_score ?? 0);
-                        $opennessMax = (float) ($row->opennes_max_score ?? 0);
-                        $opennessActual = (float) ($row->opennes_actual_score ?? 0);
-
-                        $coverageSum += $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
-                        $opennessSum += $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
-                    }
-
-                    $weightedCoverage = $coverageSum / $sectionCount;
-                    $weightedOpenness = $opennessSum / $sectionCount;
-                    $overall = (0.5 * $weightedCoverage) + (0.5 * $weightedOpenness);
-
                     return [
-                        'coverage_sub_score_ratio' => round($weightedCoverage, 6),
-                        'opennes_sub_score_ratio' => round($weightedOpenness, 6),
-                        'overall_score_ratio' => round($overall, 6),
+                        'coverage_sub_score_ratio' => round(((float) ($weighted->coverage_sub_score ?? 0)) / 100, 6),
+                        'opennes_sub_score_ratio' => round(((float) ($weighted->opennes_sub_score ?? 0)) / 100, 6),
+                        'overall_score_ratio' => round(((float) ($weighted->overall_score ?? 0)) / 100, 6),
                     ];
                 });
 
@@ -179,6 +154,36 @@ class CountryApiController extends Controller
                 'active' => (bool) $period->active,
             ],
             'countries' => $rows,
+        ]);
+    }
+
+    public function unlock(Request $request, int $assessmentCountryId)
+    {
+        $ac = AssessmentCountry::findOrFail($assessmentCountryId);
+        $period = AssessmentPeriod::findOrFail((int) $ac->period_id);
+
+        if (!$period->active) {
+            return $this->fail('Assessment period is completed', 409);
+        }
+
+        if (!$ac->is_submitted) {
+            return $this->fail('Country is not in submitted status', 409);
+        }
+
+        $ac->update([
+            'is_submitted' => 0,
+            'modified_by' => (int) auth()->id(),
+        ]);
+
+        AuditLogger::log($request, 'unlock assessment', $ac->id);
+
+        return $this->ok([
+            'assessment_country' => [
+                'id' => $ac->id,
+                'period_id' => (int) $ac->period_id,
+                'country_code' => (string) $ac->country_code,
+                'is_submitted' => false,
+            ],
         ]);
     }
 }

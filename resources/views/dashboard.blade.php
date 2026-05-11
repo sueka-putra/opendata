@@ -3,6 +3,16 @@
 @section('content')
 <div class="period-theme-wrap">
   <div class="period-theme-shell">
+    <div id="activeAssessmentCard" class="period-table-card dashboard-active-card mb-3 d-none">
+      <div class="dashboard-active-card-body">
+        <div>
+          <div class="dashboard-active-card-title">Active Assessment</div>
+          <div id="activeAssessmentText" class="dashboard-active-card-text"></div>
+        </div>
+        <a id="activeAssessmentBtn" class="btn od-btn-primary" href="#">Take Assessment</a>
+      </div>
+    </div>
+
     <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
       <div>
         <h1 class="h5 period-title mb-1">Assessment Histories</h1>
@@ -76,6 +86,36 @@
     gap: 14px;
   }
 
+  .dashboard-active-card {
+    border: 1px solid #c9ddff;
+    background:
+      radial-gradient(120% 120% at 100% -10%, rgba(56, 124, 255, 0.16), transparent 58%),
+      linear-gradient(180deg, #fafdff 0%, #f2f8ff 100%);
+  }
+
+  .dashboard-active-card-body {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .dashboard-active-card-title {
+    font-size: 0.84rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #28589a;
+    margin-bottom: 2px;
+  }
+
+  .dashboard-active-card-text {
+    color: #2b4268;
+    font-weight: 500;
+  }
+
   .dashboard-chart-card {
     border-radius: 14px;
     overflow: hidden;
@@ -125,6 +165,10 @@
     .dashboard-charts-grid {
       grid-template-columns: 1fr;
     }
+
+    .dashboard-active-card-body .btn {
+      width: 100%;
+    }
   }
 </style>
 @endpush
@@ -134,6 +178,9 @@
 <script>
 const rowContainer = document.getElementById('assessmentRows');
 const countryFilter = document.getElementById('countryFilter');
+const activeAssessmentCard = document.getElementById('activeAssessmentCard');
+const activeAssessmentText = document.getElementById('activeAssessmentText');
+const activeAssessmentBtn = document.getElementById('activeAssessmentBtn');
 let historyScoreChart = null;
 let sectionScoreChart = null;
 let latestRows = [];
@@ -182,7 +229,7 @@ function renderRows(rows) {
       ? '<span class="od-badge od-badge-open">Open</span>'
       : '<span class="od-badge od-badge-close">Completed</span>';
     const formUrl = `/trx/form?periodid=${encodeURIComponent(r.period_id)}&country_code=${encodeURIComponent(r.country_code)}`;
-    var stext = (r.active) ? 'Open' : 'View';
+    const stext = periodOpen ? 'Assess' : 'View';
 
     return `
       <tr>
@@ -198,6 +245,25 @@ function renderRows(rows) {
       </tr>
     `;
   }).join('');
+}
+
+function renderActiveAssessmentCard(rows) {
+  if (!activeAssessmentCard || !activeAssessmentText || !activeAssessmentBtn) return;
+
+  const activeRow = rows.find((r) => isOpenPeriod(r));
+  if (!activeRow) {
+    activeAssessmentCard.classList.add('d-none');
+    activeAssessmentBtn.setAttribute('href', '#');
+    return;
+  }
+
+  const periodTitle = String(activeRow.description || '-');
+  const referenceYear = String(activeRow.year || '-');
+  const formUrl = `/trx/form?periodid=${encodeURIComponent(activeRow.period_id)}&country_code=${encodeURIComponent(activeRow.country_code)}`;
+
+  activeAssessmentText.textContent = `There is currently an active Assessment ${periodTitle} for reference year ${referenceYear}.`;
+  activeAssessmentBtn.setAttribute('href', formUrl);
+  activeAssessmentCard.classList.remove('d-none');
 }
 
 function chartPalette() {
@@ -415,9 +481,11 @@ async function loadAssessments() {
 
     latestRows = data.rows || [];
     renderRows(latestRows);
+    renderActiveAssessmentCard(latestRows);
     renderCharts(latestRows);
   } catch (error) {
     latestRows = [];
+    if (activeAssessmentCard) activeAssessmentCard.classList.add('d-none');
     destroyCharts();
     rowContainer.innerHTML = `<tr><td colspan="9" class="text-danger">${error.message}</td></tr>`;
   }

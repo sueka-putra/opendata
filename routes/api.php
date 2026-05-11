@@ -48,6 +48,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::put('/period/{periodId}', [PeriodApiController::class, 'close'])->middleware('admin.only');
 
         Route::get('/countries/{periodId}', [CountryApiController::class, 'index'])->middleware('admin.only');
+        Route::post('/countries/{assessmentCountryId}/unlock', [CountryApiController::class, 'unlock'])->middleware('admin.only');
 
         Route::get('/form', [FormApiController::class, 'show']);
         Route::get('/form/logs', [FormApiController::class, 'logs']);
