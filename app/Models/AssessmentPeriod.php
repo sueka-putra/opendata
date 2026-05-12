@@ -8,6 +8,7 @@ class AssessmentPeriod extends BaseLegacyModel
 
     protected $casts = [
         'active' => 'boolean',
+        'config_id' => 'integer',
     ];
 
     public function rows()
@@ -18,5 +19,10 @@ class AssessmentPeriod extends BaseLegacyModel
     public function countries()
     {
         return $this->hasMany(AssessmentCountry::class, 'period_id');
+    }
+
+    public function configuration()
+    {
+        return $this->belongsTo(Configuration::class, 'config_id');
     }
 }

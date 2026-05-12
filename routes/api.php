@@ -53,6 +53,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::get('/form', [FormApiController::class, 'show']);
         Route::get('/form/logs', [FormApiController::class, 'logs']);
         Route::post('/form', [FormApiController::class, 'update']);
+        Route::post('/form/summary', [FormApiController::class, 'updateSummary']);
         Route::post('/form/upload', [FormApiController::class, 'uploadTemplate']);
         Route::post('/form/submit', [FormApiController::class, 'submit']);
         Route::get('/dashboard-assessments', [DashboardAssessmentApiController::class, 'index']);

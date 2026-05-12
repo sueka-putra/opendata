@@ -68,6 +68,22 @@ class FormApiController extends Controller
         $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
 
         $period = AssessmentPeriod::findOrFail($periodId);
+        $configMeta = DB::table('od_mst_configurations')
+            ->where('id', (int) $period->config_id)
+            ->first([
+                'id',
+                'header_row',
+                'detail_row',
+                'detail_rows',
+            ]);
+        $templatePrefixes = DB::table('od_mst_configuration_rows')
+            ->where('config_id', (int) $period->config_id)
+            ->orderBy('seq_no')
+            ->orderBy('id')
+            ->pluck('prefix')
+            ->map(fn ($prefix) => strtoupper(trim((string) $prefix)))
+            ->filter(fn ($prefix) => $prefix !== '')
+            ->values();
         $ac = AssessmentCountry::where('period_id', $periodId)->where('country_code', $countryCode)->firstOrFail();
         $adminCode = (string) config('opendata.admin_country_code', '00');
         $countryName = Country::query()
@@ -241,6 +257,13 @@ class FormApiController extends Controller
                 'year' => $period->year,
                 'active' => (bool) $period->active,
                 'description' => $period->description,
+                'config_id' => (int) $period->config_id,
+            ],
+            'upload_template' => [
+                'header_row' => (int) ($configMeta->header_row ?? 3),
+                'detail_row' => (int) ($configMeta->detail_row ?? 5),
+                'detail_rows' => (int) ($configMeta->detail_rows ?? 0),
+                'prefixes' => $templatePrefixes,
             ],
             'assessment_country' => [
                 'id' => $ac->id,
@@ -595,5 +618,81 @@ class FormApiController extends Controller
             ],
             'summary' => $summaries,
         ]);
+    }
+
+    public function updateSummary(Request $request)
+    {
+        $payload = $request->validate([
+            'periodid' => 'required|integer',
+            'countryid' => 'required|integer',
+            'sections' => 'required|array|min:1',
+            'sections.*.section_id' => 'required|integer|min:1',
+            'sections.*.coverage_max_score' => 'required|numeric',
+            'sections.*.coverage_actual_score' => 'required|numeric',
+            'sections.*.coverage_sub_score' => 'required|numeric',
+            'sections.*.opennes_max_score' => 'required|numeric',
+            'sections.*.opennes_actual_score' => 'required|numeric',
+            'sections.*.opennes_sub_score' => 'required|numeric',
+            'sections.*.overall_score' => 'required|numeric',
+            'weighted' => 'required|array',
+            'weighted.coverage_sub_score' => 'required|numeric',
+            'weighted.opennes_sub_score' => 'required|numeric',
+            'weighted.overall_score' => 'required|numeric',
+        ]);
+
+        $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
+        if (!$isAseanstatsStaff) {
+            return $this->fail('Forbidden', 403);
+        }
+
+        $ac = AssessmentCountry::where('id', $payload['countryid'])
+            ->where('period_id', $payload['periodid'])
+            ->firstOrFail();
+
+        DB::transaction(function () use ($payload, $ac) {
+            foreach ($payload['sections'] as $row) {
+                $sectionId = (int) $row['section_id'];
+                DB::table('od_trx_assessment_summaries')
+                    ->updateOrInsert(
+                        [
+                            'assessment_country_id' => (int) $ac->id,
+                            'section_id' => $sectionId,
+                        ],
+                        [
+                            'coverage_max_score' => round((float) $row['coverage_max_score'], 2),
+                            'coverage_actual_score' => round((float) $row['coverage_actual_score'], 2),
+                            'coverage_sub_score' => round((float) $row['coverage_sub_score'], 2),
+                            'opennes_max_score' => round((float) $row['opennes_max_score'], 2),
+                            'opennes_actual_score' => round((float) $row['opennes_actual_score'], 2),
+                            'opennes_sub_score' => round((float) $row['opennes_sub_score'], 2),
+                            'overall_score' => round((float) $row['overall_score'], 2),
+                        ]
+                    );
+            }
+
+            $weighted = $payload['weighted'];
+            DB::table('od_trx_assessment_summaries')
+                ->updateOrInsert(
+                    [
+                        'assessment_country_id' => (int) $ac->id,
+                        'section_id' => 0,
+                    ],
+                    [
+                        'coverage_max_score' => 0,
+                        'coverage_actual_score' => 0,
+                        'coverage_sub_score' => round((float) $weighted['coverage_sub_score'], 2),
+                        'opennes_max_score' => 0,
+                        'opennes_actual_score' => 0,
+                        'opennes_sub_score' => round((float) $weighted['opennes_sub_score'], 2),
+                        'overall_score' => round((float) $weighted['overall_score'], 2),
+                    ]
+                );
+
+            $ac->update(['modified_by' => (int) auth()->id()]);
+        });
+
+        AuditLogger::log($request, 'update summary', $ac->id);
+
+        return $this->ok(['saved' => true]);
     }
 }

@@ -131,7 +131,12 @@
         <div class="period-table-card mb-3">
           <div class="period-table-toolbar d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <strong class="assessment-toolbar-title">Section Summary</strong>
-            <button class="btn btn-sm od-btn-outline" type="button" id="btnSummaryPrint">Print</button>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-sm od-btn-outline assessment-summary-action-btn" type="button" id="btnSummaryEdit">Edit</button>
+              <button class="btn btn-sm od-btn-primary assessment-summary-action-btn" type="button" id="btnSummarySave" style="display:none;">Save</button>
+              <button class="btn btn-sm od-btn-outline assessment-summary-action-btn" type="button" id="btnSummaryCancel" style="display:none;">Cancel</button>
+              <button class="btn btn-sm od-btn-outline assessment-summary-action-btn" type="button" id="btnSummaryPrint">Print</button>
+            </div>
           </div>
           <div class="table-responsive">
             <table class="table period-table align-middle mb-0 assessment-summary-table">
@@ -346,6 +351,12 @@
   .assessment-form-action-btn {
     width: 104px;
     min-width: 104px;
+    white-space: nowrap;
+  }
+
+  .assessment-summary-action-btn {
+    width: 116px;
+    min-width: 116px;
     white-space: nowrap;
   }
 
@@ -914,11 +925,15 @@
     period: null,
     assessmentCountry: null,
     detailMeta: null,
+    uploadTemplate: null,
     detail: [],
     summary: [],
+    summaryDraft: [],
+    summaryEditMode: false,
     logs: [],
     summaryLocked: {},
     weightedScore: null,
+    weightedScoreDraft: null,
     editable: false,
     isAseanstatsStaff: false,
     filters: {
@@ -1535,7 +1550,7 @@
     return 'in_progress';
   }
 
-  function recomputeLocalScores() {
+  function recomputeLocalScores(recomputeSummary = true) {
     const detailRows = Array.isArray(pageState.detail) ? pageState.detail : [];
     const referenceYear = Number(pageState.period?.year) || new Date().getFullYear();
 
@@ -1552,6 +1567,10 @@
       row.c = cov.c;
       row.o = cov.is_na ? 0 : computeRowOpenness(row);
     });
+
+    if (!recomputeSummary) {
+      return;
+    }
 
     const bySection = new Map();
     detailRows.forEach((row) => {
@@ -1856,6 +1875,9 @@
     const uploadWrap = uploadBtn?.closest('.dropdown');
     const exportBtn = document.getElementById('btnExportForm');
     const summaryPrintBtn = document.getElementById('btnSummaryPrint');
+    const summaryEditBtn = document.getElementById('btnSummaryEdit');
+    const summarySaveBtn = document.getElementById('btnSummarySave');
+    const summaryCancelBtn = document.getElementById('btnSummaryCancel');
     const saveBtn = document.getElementById('btnSaveForm');
     const submitBtn = document.getElementById('btnSubmitForm');
     const canExport = pageState.isAseanstatsStaff;
@@ -1867,6 +1889,9 @@
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
       if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = true;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -1894,6 +1919,9 @@
       uploadBtn.disabled = isSubmitted;
       exportBtn.style.display = canExport ? '' : 'none';
       if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = isSubmitted ? 'none' : '';
       submitBtn.style.display = isSubmitted ? 'none' : '';
@@ -1908,6 +1936,9 @@
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
       if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -1919,8 +1950,12 @@
 
   function renderSummaryRows() {
     const tbody = document.getElementById('summaryRows');
-    const rows = Array.isArray(pageState.summary) ? pageState.summary : [];
-    const weighted = pageState.weightedScore || null;
+    const rows = pageState.summaryEditMode
+      ? (Array.isArray(pageState.summaryDraft) ? pageState.summaryDraft : [])
+      : (Array.isArray(pageState.summary) ? pageState.summary : []);
+    const weighted = pageState.summaryEditMode
+      ? (pageState.weightedScoreDraft || null)
+      : (pageState.weightedScore || null);
 
     function fmtPercentInt(value) {
       if (value === null || value === undefined || value === '') return '-';
@@ -1936,6 +1971,21 @@
       return num.toFixed(2);
     }
 
+    function toInputValue(value) {
+      if (value === null || value === undefined || value === '') return '';
+      const num = Number(value);
+      if (Number.isNaN(num)) return '';
+      return num.toFixed(2);
+    }
+
+    function editableCell(value, field, idx, weightedRow = false) {
+      if (!pageState.summaryEditMode) {
+        return fmt2(value);
+      }
+      const rowType = weightedRow ? 'weighted' : 'section';
+      return `<input type="number" step="0.01" class="form-control form-control-sm summary-edit-input summary-num" data-row-type="${rowType}" data-row-index="${idx}" data-field="${field}" value="${esc(toInputValue(value))}">`;
+    }
+
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="9" class="text-muted">No summary available.</td></tr>';
       return;
@@ -1945,13 +1995,13 @@
       <tr>
         <td class="summary-vr">${esc(s.section?.title || (s.section_id ? `Section ${s.section_id}` : 'Overall'))}</td>
         <td class="summary-vr summary-num">${fmtPercentInt(s.progress)}</td>
-        <td class="summary-num">${fmt2(s.coverage_max_score)}</td>
-        <td class="summary-num">${fmt2(s.coverage_actual_score)}</td>
-        <td class="summary-vr summary-num">${fmt2(s.coverage_sub_score_ratio)}</td>
-        <td class="summary-num">${fmt2(s.opennes_max_score)}</td>
-        <td class="summary-num">${fmt2(s.opennes_actual_score)}</td>
-        <td class="summary-vr summary-num">${fmt2(s.opennes_sub_score_ratio)}</td>
-        <td class="summary-num">${fmt2(s.overall_score_ratio)}</td>
+        <td class="summary-num">${editableCell(s.coverage_max_score, 'coverage_max_score', idx)}</td>
+        <td class="summary-num">${editableCell(s.coverage_actual_score, 'coverage_actual_score', idx)}</td>
+        <td class="summary-vr summary-num">${editableCell(s.coverage_sub_score_ratio, 'coverage_sub_score_ratio', idx)}</td>
+        <td class="summary-num">${editableCell(s.opennes_max_score, 'opennes_max_score', idx)}</td>
+        <td class="summary-num">${editableCell(s.opennes_actual_score, 'opennes_actual_score', idx)}</td>
+        <td class="summary-vr summary-num">${editableCell(s.opennes_sub_score_ratio, 'opennes_sub_score_ratio', idx)}</td>
+        <td class="summary-num">${editableCell(s.overall_score_ratio, 'overall_score_ratio', idx)}</td>
       </tr>
     `).join('');
 
@@ -1959,14 +2009,124 @@
       <tr class="table-light fw-semibold summary-weighted-row">
         <td colspan="2" class="summary-vr">Weighted Score</td>
         <td colspan="2">Coverage weighted sub score:</td>
-        <td class="summary-vr summary-num">${fmt2(weighted?.coverage_sub_score_ratio)}</td>
+        <td class="summary-vr summary-num">${editableCell(weighted?.coverage_sub_score_ratio, 'coverage_sub_score_ratio', 0, true)}</td>
         <td colspan="2">Opennes weighted sub score:</td>
-        <td class="summary-vr summary-num">${fmt2(weighted?.opennes_sub_score_ratio)}</td>
-        <td class="summary-num">${fmt2(weighted?.overall_score_ratio)}</td>
+        <td class="summary-vr summary-num">${editableCell(weighted?.opennes_sub_score_ratio, 'opennes_sub_score_ratio', 0, true)}</td>
+        <td class="summary-num">${editableCell(weighted?.overall_score_ratio, 'overall_score_ratio', 0, true)}</td>
       </tr>
     `;
 
     tbody.innerHTML = `${sectionRowsHtml}${weightedRowHtml}`;
+  }
+
+  function parseSummaryNumber(raw, fallback = 0) {
+    const text = String(raw ?? '').trim();
+    if (!text) return fallback;
+    const num = Number(text);
+    return Number.isFinite(num) ? num : fallback;
+  }
+
+  function setSummaryEditMode(enabled) {
+    const editBtn = document.getElementById('btnSummaryEdit');
+    const saveBtn = document.getElementById('btnSummarySave');
+    const cancelBtn = document.getElementById('btnSummaryCancel');
+    if (!pageState.isAseanstatsStaff) {
+      pageState.summaryEditMode = false;
+      if (editBtn) editBtn.style.display = 'none';
+      if (saveBtn) saveBtn.style.display = 'none';
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      return;
+    }
+
+    pageState.summaryEditMode = enabled === true;
+    if (pageState.summaryEditMode) {
+      pageState.summaryDraft = (Array.isArray(pageState.summary) ? pageState.summary : []).map((row) => ({ ...row }));
+      pageState.weightedScoreDraft = pageState.weightedScore ? { ...pageState.weightedScore } : {
+        coverage_sub_score_ratio: 0,
+        opennes_sub_score_ratio: 0,
+        overall_score_ratio: 0,
+      };
+    } else {
+      pageState.summaryDraft = [];
+      pageState.weightedScoreDraft = null;
+    }
+
+    if (editBtn) editBtn.style.display = pageState.summaryEditMode ? 'none' : '';
+    if (saveBtn) saveBtn.style.display = pageState.summaryEditMode ? '' : 'none';
+    if (cancelBtn) cancelBtn.style.display = pageState.summaryEditMode ? '' : 'none';
+    renderSummaryRows();
+  }
+
+  function bindSummaryEditInputs() {
+    const tbody = document.getElementById('summaryRows');
+    tbody.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!target.classList.contains('summary-edit-input')) return;
+      if (!pageState.summaryEditMode) return;
+
+      const rowType = String(target.dataset.rowType || '');
+      const rowIndex = Number(target.dataset.rowIndex || -1);
+      const field = String(target.dataset.field || '');
+      const value = parseSummaryNumber(target.value, 0);
+
+      if (rowType === 'weighted') {
+        pageState.weightedScoreDraft = pageState.weightedScoreDraft || {};
+        pageState.weightedScoreDraft[field] = value;
+        return;
+      }
+
+      if (rowType === 'section' && rowIndex >= 0 && rowIndex < pageState.summaryDraft.length) {
+        pageState.summaryDraft[rowIndex][field] = value;
+      }
+    });
+  }
+
+  async function saveSummary() {
+    hideError();
+    if (!pageState.isAseanstatsStaff) {
+      odToast('Only ASEANstats can edit summary.');
+      return;
+    }
+    if (!pageState.summaryEditMode) return;
+
+    const btn = document.getElementById('btnSummarySave');
+    btn.disabled = true;
+    try {
+      const sections = (Array.isArray(pageState.summaryDraft) ? pageState.summaryDraft : []).map((s) => ({
+        section_id: Number(s.section_id || 0),
+        coverage_max_score: parseSummaryNumber(s.coverage_max_score, 0),
+        coverage_actual_score: parseSummaryNumber(s.coverage_actual_score, 0),
+        coverage_sub_score: parseSummaryNumber(s.coverage_sub_score_ratio, 0),
+        opennes_max_score: parseSummaryNumber(s.opennes_max_score, 0),
+        opennes_actual_score: parseSummaryNumber(s.opennes_actual_score, 0),
+        opennes_sub_score: parseSummaryNumber(s.opennes_sub_score_ratio, 0),
+        overall_score: parseSummaryNumber(s.overall_score_ratio, 0),
+      })).filter((s) => s.section_id > 0);
+
+      const weighted = pageState.weightedScoreDraft || {};
+
+      await odFetch('/api/trx/form/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          periodid: pageState.periodId,
+          countryid: pageState.assessmentCountry?.id,
+          sections,
+          weighted: {
+            coverage_sub_score: parseSummaryNumber(weighted.coverage_sub_score_ratio, 0),
+            opennes_sub_score: parseSummaryNumber(weighted.opennes_sub_score_ratio, 0),
+            overall_score: parseSummaryNumber(weighted.overall_score_ratio, 0),
+          },
+        }),
+      });
+
+      await loadForm();
+      odToast('Summary saved.');
+    } catch (err) {
+      showError(err.message || 'Failed to save summary.');
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function fmtScore2(value) {
@@ -2453,23 +2613,27 @@
     if (!sheetName) throw new Error('Template has no worksheet.');
 
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    let parseRange = undefined;
+    if (sheet && sheet['!ref'] && window.XLSX?.utils?.decode_range) {
+      parseRange = XLSX.utils.decode_range(sheet['!ref']);
+      // Force parser to include column A even when A is blank in many rows.
+      parseRange.s.c = 0;
+      parseRange.s.r = 0;
+    }
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', range: parseRange });
     if (!Array.isArray(rows) || rows.length < 1) throw new Error('Template sheet is empty.');
 
-    // Some templates include title/blank rows before the real header row.
-    const scanLimit = Math.min(rows.length, 20);
-    const headerRowIndex = rows.findIndex((r, idx) => {
-      if (idx >= scanLimit) return false;
-      return normalizeTemplateHeader(r?.[0]) === 'code';
-    });
-    if (headerRowIndex < 0) {
-      throw new Error('The first column header must be "Code".');
-    }
+    const uploadCfg = pageState.uploadTemplate || {};
+    const headerRowNumber = Number(uploadCfg.header_row || 3);
+    const detailRowNumber = Number(uploadCfg.detail_row || (headerRowNumber + 2));
+    const detailRowsLimit = Number(uploadCfg.detail_rows || 0);
+    const headerRowIndex = Math.max(0, headerRowNumber - 1);
+    const dataStartIndex = Math.max(0, detailRowNumber - 1);
+
     const headerRow = rows[headerRowIndex] || [];
     const firstHeader = normalizeTemplateHeader(headerRow[0]);
-    if (firstHeader !== 'code') {
-      throw new Error('The first column header must be "Code".');
-    }
+    const hasCodeHeaderAtConfiguredRow = firstHeader === 'code';
+    const codePattern = /^[A-Z]{2}\.\d{3}\.\d{3}\.\d{3}$/;
 
     const nextHeaderRow = rows[headerRowIndex + 1] || [];
     const requiredHeaderAliases = new Map([
@@ -2512,7 +2676,19 @@
       return idx >= 0 ? idx : fallback;
     };
 
-    // Fallback indexes follow the known template layout.
+    // Default indexes follow the known template layout (A=0).
+    const fallbackColumnIndex = {
+      series: 5, // F
+      machine_readability: 13, // N
+      proprietary: 14, // O
+      download_options: 15, // P
+      metadata: 16, // Q
+      term_of_use: 17, // R
+      url: 19, // T
+      remark: 20, // U
+    };
+
+    // Dynamic header detection (used for normal/code mode).
     const seriesIdx = indexOrFallback(requiredHeaderAliases.get('series'), 5);
     const machineReadabilityIdx = indexOrFallback(requiredHeaderAliases.get('machine_readability'), 13);
     const proprietaryIdx = indexOrFallback(requiredHeaderAliases.get('proprietary'), 14);
@@ -2521,36 +2697,119 @@
     const termOfUseIdx = indexOrFallback(requiredHeaderAliases.get('term_of_use'), 17);
     const urlIdx = indexOrFallback(requiredHeaderAliases.get('url'), 19);
     const remarkIdx = indexOrFallback(requiredHeaderAliases.get('remark'), 20);
+    const safeUrlIdx = urlIdx;
+    const safeRemarkIdx = remarkIdx === urlIdx ? 20 : remarkIdx;
+
+    function scanTemplateRows(sourceRows) {
+      let foundTotal = false;
+      let hasInvalid = false;
+      let foundValid = false;
+      const scanned = [];
+
+      for (let i = dataStartIndex; i < sourceRows.length; i += 1) {
+        if (detailRowsLimit > 0 && (i - dataStartIndex) >= detailRowsLimit) {
+          break;
+        }
+        const xRow = sourceRows[i] || [];
+        const colB = cellText(xRow[1]).toLowerCase();
+        if (colB === 'total') {
+          foundTotal = true;
+          break;
+        }
+
+        const codeRaw = cellText(xRow[0]).toUpperCase();
+        const code = normalizeCode(codeRaw);
+        if (codeRaw) {
+          if (!codePattern.test(codeRaw)) {
+            hasInvalid = true;
+          } else {
+            foundValid = true;
+          }
+        }
+        scanned.push({ row: xRow, index: i, code });
+      }
+
+      return {
+        rows: scanned,
+        foundTotal,
+        hasInvalid,
+        foundValid,
+      };
+    }
+
+    const initialScan = scanTemplateRows(rows);
+    const reachedByLimit = detailRowsLimit > 0 && initialScan.rows.length >= detailRowsLimit;
+    const hasTerminalBoundary = initialScan.foundTotal || reachedByLimit;
+    const canMapByCode = hasCodeHeaderAtConfiguredRow && initialScan.foundValid && !initialScan.hasInvalid && hasTerminalBoundary;
+    let mappingMode = 'code';
+    let effectiveRows = rows;
+    if (!canMapByCode) {
+      mappingMode = 'order';
+      const proceed = await odConfirm(
+        'Required codes were not found in the file. The process will continue assuming the file order matches the original template. Continue Upload process?',
+        'Confirm Fallback Mapping'
+      );
+      if (!proceed) {
+        throw new Error('Template processing cancelled.');
+      }
+
+      const prefixes = Array.isArray(uploadCfg.prefixes) ? uploadCfg.prefixes : [];
+      const injectedRows = rows.map((r) => (Array.isArray(r) ? [...r] : []));
+      let prefixIdx = 0;
+      for (let i = dataStartIndex; i < injectedRows.length; i += 1) {
+        if (detailRowsLimit > 0 && (i - dataStartIndex) >= detailRowsLimit) {
+          break;
+        }
+        const xRow = injectedRows[i] || [];
+        const colB = cellText(xRow[1]).toLowerCase();
+        if (colB === 'total') {
+          break;
+        }
+        if (prefixIdx >= prefixes.length) {
+          break;
+        }
+        xRow[0] = String(prefixes[prefixIdx] || '').trim();
+        injectedRows[i] = xRow;
+        prefixIdx += 1;
+      }
+      effectiveRows = injectedRows;
+    }
+
+    const isFallbackOrderMode = mappingMode === 'order';
+    const activeSeriesIdx = isFallbackOrderMode ? fallbackColumnIndex.series : seriesIdx;
+    const activeMachineReadabilityIdx = isFallbackOrderMode ? fallbackColumnIndex.machine_readability : machineReadabilityIdx;
+    const activeProprietaryIdx = isFallbackOrderMode ? fallbackColumnIndex.proprietary : proprietaryIdx;
+    const activeDownloadOptionsIdx = isFallbackOrderMode ? fallbackColumnIndex.download_options : downloadOptionsIdx;
+    const activeMetadataIdx = isFallbackOrderMode ? fallbackColumnIndex.metadata : metadataIdx;
+    const activeTermOfUseIdx = isFallbackOrderMode ? fallbackColumnIndex.term_of_use : termOfUseIdx;
+    const activeUrlIdx = isFallbackOrderMode ? fallbackColumnIndex.url : safeUrlIdx;
+    const activeRemarkIdx = isFallbackOrderMode ? fallbackColumnIndex.remark : safeRemarkIdx;
 
     const parsedByCode = new Map();
     let truncatedUrls = 0;
     let truncatedRemarks = 0;
-
-    const dataStartIndex = headerRowIndex + (nextRowHasHeaderTokens ? 2 : 1);
-    for (let i = dataStartIndex; i < rows.length; i += 1) {
-      const xRow = rows[i] || [];
-      const code = normalizeCode(xRow[0]);
-      if (!code || !code.includes('.')) continue;
-
-      const series = normalizeSeriesYears(seriesIdx >= 0 ? cellText(xRow[seriesIdx]) : '');
-      const urlsResult = truncateTemplateText(urlIdx >= 0 ? xRow[urlIdx] : '');
-      const remarksResult = truncateTemplateText(remarkIdx >= 0 ? xRow[remarkIdx] : '');
+    const finalScan = scanTemplateRows(effectiveRows);
+    finalScan.rows.forEach((item) => {
+      if (!item.code) return;
+      const xRow = item.row;
+      const series = normalizeSeriesYears(activeSeriesIdx >= 0 ? cellText(xRow[activeSeriesIdx]) : '');
+      const urlsResult = truncateTemplateText(activeUrlIdx >= 0 ? xRow[activeUrlIdx] : '');
+      const remarksResult = truncateTemplateText(activeRemarkIdx >= 0 ? xRow[activeRemarkIdx] : '');
       if (urlsResult.truncated) truncatedUrls += 1;
       if (remarksResult.truncated) truncatedRemarks += 1;
 
       const parsed = {
-        code,
-        source_row: i + 1,
+        code: item.code,
+        source_row: item.index + 1,
         series,
-        machine_readability: machineReadabilityIdx >= 0 ? parseTemplateMetric(xRow[machineReadabilityIdx], [-1, 0, 1]) : null,
-        proprietary: proprietaryIdx >= 0 ? parseTemplateMetric(xRow[proprietaryIdx], [-1, 0, 1]) : null,
-        download_options: downloadOptionsIdx >= 0 ? parseTemplateMetric(xRow[downloadOptionsIdx], [-1, 0, 0.5, 1]) : null,
-        metadata: metadataIdx >= 0 ? parseTemplateMetric(xRow[metadataIdx], [-1, 0, 0.5, 1]) : null,
-        term_of_use: termOfUseIdx >= 0 ? parseTemplateMetric(xRow[termOfUseIdx], [-1, 0, 0.5, 1]) : null,
+        machine_readability: activeMachineReadabilityIdx >= 0 ? parseTemplateMetric(xRow[activeMachineReadabilityIdx], [-1, 0, 1]) : null,
+        proprietary: activeProprietaryIdx >= 0 ? parseTemplateMetric(xRow[activeProprietaryIdx], [-1, 0, 1]) : null,
+        download_options: activeDownloadOptionsIdx >= 0 ? parseTemplateMetric(xRow[activeDownloadOptionsIdx], [-1, 0, 0.5, 1]) : null,
+        metadata: activeMetadataIdx >= 0 ? parseTemplateMetric(xRow[activeMetadataIdx], [-1, 0, 0.5, 1]) : null,
+        term_of_use: activeTermOfUseIdx >= 0 ? parseTemplateMetric(xRow[activeTermOfUseIdx], [-1, 0, 0.5, 1]) : null,
         urls: urlsResult.value,
         remarks: remarksResult.value,
       };
-
       if (String(series).trim().toUpperCase() === 'NA') {
         parsed.machine_readability = -1;
         parsed.proprietary = -1;
@@ -2558,11 +2817,11 @@
         parsed.metadata = -1;
         parsed.term_of_use = -1;
       }
-
-      parsedByCode.set(code, parsed);
-    }
+      parsedByCode.set(item.code, parsed);
+    });
     return {
       sheetName,
+      mappingMode,
       parsedRows: [...parsedByCode.values()],
       truncated: {
         urls: truncatedUrls,
@@ -2825,6 +3084,7 @@
       const response = await odFetch(url);
       const data = response.data || {};
       pageState.period = data.period || null;
+      pageState.uploadTemplate = data.upload_template || null;
       pageState.assessmentCountry = data.assessment_country || null;
       pageState.isAseanstatsStaff = boolFlag(data.viewer?.is_aseanstats_staff);
       pageState.detailMeta = data.detail_meta || null;
@@ -2833,8 +3093,11 @@
         _row_no: index + 1,
       }));
       pageState.summary = [];
+      pageState.summaryDraft = [];
+      pageState.summaryEditMode = false;
       pageState.summaryLocked = {};
       pageState.weightedScore = null;
+      pageState.weightedScoreDraft = null;
 
       const serverSummaries = Array.isArray(data.summary) ? data.summary : [];
       recomputeLocalScores();
@@ -2859,9 +3122,31 @@
         };
       });
       pageState.summaryLocked = lockedBySection;
-      recomputeLocalScores();
+      pageState.summary = serverSummaries
+        .filter((s) => Number(s?.section_id || 0) > 0)
+        .map((s) => ({
+          ...s,
+          section_id: Number(s.section_id || 0),
+          section: s.section || { title: s.section_title || (s.section_id ? `Section ${s.section_id}` : '-') },
+          progress: Number(s.progress || 0),
+          coverage_max_score: Number(s.coverage_max_score || 0),
+          coverage_actual_score: Number(s.coverage_actual_score || 0),
+          coverage_sub_score_ratio: Number(s.coverage_sub_score_ratio || 0),
+          opennes_max_score: Number(s.opennes_max_score || 0),
+          opennes_actual_score: Number(s.opennes_actual_score || 0),
+          opennes_sub_score_ratio: Number(s.opennes_sub_score_ratio || 0),
+          overall_score_ratio: Number(s.overall_score_ratio || 0),
+        }))
+        .sort((a, b) => a.section_id - b.section_id);
+      pageState.weightedScore = {
+        coverage_sub_score_ratio: Number(data.weighted_score?.coverage_sub_score_ratio || 0),
+        opennes_sub_score_ratio: Number(data.weighted_score?.opennes_sub_score_ratio || 0),
+        overall_score_ratio: Number(data.weighted_score?.overall_score_ratio || 0),
+      };
+      recomputeLocalScores(false);
 
       renderMeta();
+      setSummaryEditMode(false);
       renderSummaryRows();
       renderFilterControls();
       renderDetailRows();
@@ -3038,7 +3323,11 @@
     document.getElementById('btnExportForm').addEventListener('click', exportFormToExcel);
     document.getElementById('btnSaveForm').addEventListener('click', saveForm);
     document.getElementById('btnSubmitForm').addEventListener('click', submitForm);
+    document.getElementById('btnSummaryEdit').addEventListener('click', () => setSummaryEditMode(true));
+    document.getElementById('btnSummarySave').addEventListener('click', saveSummary);
+    document.getElementById('btnSummaryCancel').addEventListener('click', () => setSummaryEditMode(false));
     document.getElementById('btnSummaryPrint').addEventListener('click', printCurrentSummary);
+    bindSummaryEditInputs();
     document.getElementById('btnHelpWizard').addEventListener('click', () => {
       openHelpWizard(0);
     });
