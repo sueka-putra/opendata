@@ -182,14 +182,14 @@ class ScoreService
             AssessmentSummary::where('assessment_country_id', $assessmentCountry->id)->delete();
 
             foreach ($bySection as $sectionId => $sectionRows) {
-                $eligible = $sectionRows->filter(fn ($r) => !$r['is_na']);
-                $nEligible = $eligible->count();
+                // NA rows are part of the denominator and contribute zero to actual score.
+                $nRows = $sectionRows->count();
 
-                $coverageMax = $nEligible * 3;
-                $opennessMax = $nEligible * 5;
+                $coverageMax = $nRows * 3;
+                $opennessMax = $nRows * 5;
 
-                $coverageActual = (float) $eligible->sum(fn ($r) => (float) ($r['coverage_sub_score'] ?? 0));
-                $opennessActual = (float) $eligible->sum(fn ($r) => (float) ($r['opennes_sub_score'] ?? 0));
+                $coverageActual = (float) $sectionRows->sum(fn ($r) => (float) ($r['coverage_sub_score'] ?? 0));
+                $opennessActual = (float) $sectionRows->sum(fn ($r) => (float) ($r['opennes_sub_score'] ?? 0));
 
                 $coverageRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
                 $opennessRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
