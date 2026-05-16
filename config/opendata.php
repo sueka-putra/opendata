@@ -13,4 +13,7 @@ return [
 
     // Password reset token validity (minutes)
     'password_reset_expire_minutes' => (int) env('OPENDATA_PASSWORD_RESET_EXPIRE', 5),
+
+    // Temporary switch: allow non-ASEANstats users to export assessment data.
+    'allow_export' => (bool) env('OPENDATA_ALLOW_EXPORT', false),
 ];

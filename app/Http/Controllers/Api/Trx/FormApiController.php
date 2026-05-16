@@ -66,6 +66,7 @@ class FormApiController extends Controller
         $periodId = (int) $request->query('periodid');
         $countryCode = (string) $request->query('country_code', $request->user()->country_code);
         $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
+        $allowExport = $isAseanstatsStaff || (bool) config('opendata.allow_export', false);
 
         $period = AssessmentPeriod::findOrFail($periodId);
         $configMeta = DB::table('od_mst_configurations')
@@ -285,6 +286,7 @@ class FormApiController extends Controller
             ],
             'viewer' => [
                 'is_aseanstats_staff' => $isAseanstatsStaff,
+                'can_export' => $allowExport,
             ],
         ]);
     }

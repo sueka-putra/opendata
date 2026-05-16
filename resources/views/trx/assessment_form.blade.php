@@ -936,6 +936,7 @@
     weightedScoreDraft: null,
     editable: false,
     isAseanstatsStaff: false,
+    canExport: false,
     filters: {
       sectionId: '',
       categoryId: '',
@@ -1880,7 +1881,8 @@
     const summaryCancelBtn = document.getElementById('btnSummaryCancel');
     const saveBtn = document.getElementById('btnSaveForm');
     const submitBtn = document.getElementById('btnSubmitForm');
-    const canExport = pageState.isAseanstatsStaff;
+    const canExport = boolFlag(pageState.canExport);
+    const canSummaryManage = pageState.isAseanstatsStaff;
 
     if (!pageState.period || !pageState.assessmentCountry) {
       meta.textContent = 'Assessment information unavailable.';
@@ -1888,10 +1890,10 @@
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
-      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
-      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
-      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
-      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canSummaryManage ? '' : 'none';
       exportBtn.disabled = true;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -1918,10 +1920,10 @@
       if (uploadWrap) uploadWrap.style.display = isSubmitted ? 'none' : '';
       uploadBtn.disabled = isSubmitted;
       exportBtn.style.display = canExport ? '' : 'none';
-      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
-      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
-      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
-      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canSummaryManage ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = isSubmitted ? 'none' : '';
       submitBtn.style.display = isSubmitted ? 'none' : '';
@@ -1935,10 +1937,10 @@
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
       exportBtn.style.display = canExport ? '' : 'none';
-      if (summaryPrintBtn) summaryPrintBtn.style.display = canExport ? '' : 'none';
-      if (summaryEditBtn) summaryEditBtn.style.display = canExport ? '' : 'none';
-      if (summarySaveBtn) summarySaveBtn.style.display = canExport ? '' : 'none';
-      if (summaryCancelBtn) summaryCancelBtn.style.display = canExport ? '' : 'none';
+      if (summaryPrintBtn) summaryPrintBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryEditBtn) summaryEditBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summarySaveBtn) summarySaveBtn.style.display = canSummaryManage ? '' : 'none';
+      if (summaryCancelBtn) summaryCancelBtn.style.display = canSummaryManage ? '' : 'none';
       exportBtn.disabled = !canExport;
       saveBtn.style.display = 'none';
       submitBtn.style.display = 'none';
@@ -2461,6 +2463,10 @@
 
   function exportFormToExcel() {
     hideError();
+    if (!boolFlag(pageState.canExport)) {
+      odToast('Export is not available for your account.');
+      return;
+    }
     const rows = buildExportRows();
     if (!rows.length) {
       odToast('No rows available to export for current filters.');
@@ -3087,6 +3093,7 @@
       pageState.uploadTemplate = data.upload_template || null;
       pageState.assessmentCountry = data.assessment_country || null;
       pageState.isAseanstatsStaff = boolFlag(data.viewer?.is_aseanstats_staff);
+      pageState.canExport = boolFlag(data.viewer?.can_export);
       pageState.detailMeta = data.detail_meta || null;
       pageState.detail = (data.detail || []).map((row, index) => ({
         ...row,
