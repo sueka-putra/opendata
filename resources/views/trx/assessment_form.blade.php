@@ -1629,77 +1629,18 @@
       });
     });
 
-    const lockedBySection = pageState.summaryLocked || {};
-    const mergedSummaries = [];
-    const visibleKeys = new Set();
-
-    summaries.forEach((s) => {
-      const key = String(s.section_id);
-      visibleKeys.add(key);
-      const locked = lockedBySection[key] || {};
-      const coverageMax = Number(s.coverage_max_score || 0) + Number(locked.coverage_max_score || 0);
-      const coverageActual = Number(s.coverage_actual_score || 0) + Number(locked.coverage_actual_score || 0);
-      const opennessMax = Number(s.opennes_max_score || 0) + Number(locked.opennes_max_score || 0);
-      const opennessActual = Number(s.opennes_actual_score || 0) + Number(locked.opennes_actual_score || 0);
-      const coverageSubRatio = coverageMax > 0 ? (coverageActual / coverageMax) : 0;
-      const opennessSubRatio = opennessMax > 0 ? (opennessActual / opennessMax) : 0;
-      const overallRatio = (0.5 * coverageSubRatio) + (0.5 * opennessSubRatio);
-
-      mergedSummaries.push({
-        ...s,
-        section: {
-          title: s.section?.title || locked.section_title || `Section ${key}`,
-        },
-        coverage_max_score: coverageMax,
-        coverage_actual_score: coverageActual,
-        coverage_sub_score_ratio: Math.round(coverageSubRatio * 1000000) / 1000000,
-        opennes_max_score: opennessMax,
-        opennes_actual_score: opennessActual,
-        opennes_sub_score_ratio: Math.round(opennessSubRatio * 1000000) / 1000000,
-        overall_score_ratio: Math.round(overallRatio * 1000000) / 1000000,
-      });
-    });
-
-    Object.entries(lockedBySection).forEach(([key, locked]) => {
-      if (visibleKeys.has(key)) return;
-
-      const coverageMax = Number(locked.coverage_max_score || 0);
-      const coverageActual = Number(locked.coverage_actual_score || 0);
-      const opennessMax = Number(locked.opennes_max_score || 0);
-      const opennessActual = Number(locked.opennes_actual_score || 0);
-      const coverageSubRatio = coverageMax > 0 ? (coverageActual / coverageMax) : 0;
-      const opennessSubRatio = opennessMax > 0 ? (opennessActual / opennessMax) : 0;
-      const overallRatio = (0.5 * coverageSubRatio) + (0.5 * opennessSubRatio);
-
-      mergedSummaries.push({
-        section_id: Number(key),
-        section: { title: locked.section_title || `Section ${key}` },
-        total_rows: 0,
-        in_progress_rows: 0,
-        completed_rows: 0,
-        progress: Number(locked.progress || 0),
-        coverage_max_score: coverageMax,
-        coverage_actual_score: coverageActual,
-        coverage_sub_score_ratio: Math.round(coverageSubRatio * 1000000) / 1000000,
-        opennes_max_score: opennessMax,
-        opennes_actual_score: opennessActual,
-        opennes_sub_score_ratio: Math.round(opennessSubRatio * 1000000) / 1000000,
-        overall_score_ratio: Math.round(overallRatio * 1000000) / 1000000,
-      });
-    });
-
-    mergedSummaries.sort((a, b) => a.section_id - b.section_id);
-    pageState.summary = mergedSummaries;
+    summaries.sort((a, b) => a.section_id - b.section_id);
+    pageState.summary = summaries;
 
     let weightedCoverage = 0;
     let weightedOpenness = 0;
-    if (mergedSummaries.length > 0) {
-      mergedSummaries.forEach((s) => {
+    if (summaries.length > 0) {
+      summaries.forEach((s) => {
         weightedCoverage += s.coverage_sub_score_ratio;
         weightedOpenness += s.opennes_sub_score_ratio;
       });
-      weightedCoverage = weightedCoverage / mergedSummaries.length;
-      weightedOpenness = weightedOpenness / mergedSummaries.length;
+      weightedCoverage = weightedCoverage / summaries.length;
+      weightedOpenness = weightedOpenness / summaries.length;
     }
     pageState.weightedScore = {
       coverage_sub_score_ratio: Math.round(weightedCoverage * 1000000) / 1000000,
@@ -2442,6 +2383,7 @@
         r.indicator || r.indicator_title || '-',
         r.aggregation || r.aggregation_title || '-',
         String(r.series ?? ''),
+        isSeriesNa ? 'No' : 'Yes',
         exportNumeric(r.count_all, 0),
         exportNumeric(r.count_5, 0),
         exportNumeric(r.count_10, 0),
@@ -2483,6 +2425,7 @@
       'Indicator',
       'Disaggregation',
       'Series',
+      'Eligible',
       'Count All',
       'Count5',
       'Count last 10 years',
@@ -3109,26 +3052,7 @@
       const serverSummaries = Array.isArray(data.summary) ? data.summary : [];
       recomputeLocalScores();
 
-      const visibleBySection = new Map((pageState.summary || []).map((s) => [String(s.section_id), s]));
-      const lockedBySection = {};
-      serverSummaries.forEach((s) => {
-        const key = String(s.section_id ?? '');
-        if (!key) return;
-        const visible = visibleBySection.get(key);
-        const coverageMax = Math.max(0, Number(s.coverage_max_score || 0) - Number(visible?.coverage_max_score || 0));
-        const coverageActual = Math.max(0, Number(s.coverage_actual_score || 0) - Number(visible?.coverage_actual_score || 0));
-        const opennessMax = Math.max(0, Number(s.opennes_max_score || 0) - Number(visible?.opennes_max_score || 0));
-        const opennessActual = Math.max(0, Number(s.opennes_actual_score || 0) - Number(visible?.opennes_actual_score || 0));
-        lockedBySection[key] = {
-          section_title: s.section?.title || s.section_title || null,
-          progress: Number(s.progress || 0),
-          coverage_max_score: coverageMax,
-          coverage_actual_score: coverageActual,
-          opennes_max_score: opennessMax,
-          opennes_actual_score: opennessActual,
-        };
-      });
-      pageState.summaryLocked = lockedBySection;
+      pageState.summaryLocked = {};
       pageState.summary = serverSummaries
         .filter((s) => Number(s?.section_id || 0) > 0)
         .map((s) => ({

@@ -121,6 +121,10 @@ class ScoreService
     {
         $assessmentCountry->loadMissing('period');
         $referenceYear = (int) ($assessmentCountry->period?->year ?: now('UTC')->format('Y'));
+        $adminCountryCode = (string) config('opendata.admin_country_code', '00');
+        $isAseanstatsOwner = ((string) $assessmentCountry->country_code) === $adminCountryCode;
+        $schema = DB::getSchemaBuilder();
+        $hasAseanstatsOnlyCol = $schema->hasColumn('od_mst_configuration_rows', 'aseanstats_only');
 
         $rows = DB::table('od_trx_assessment_country_rows as cr')
             ->join('od_mst_configuration_rows as cfg', 'cr.row_id', '=', 'cfg.id')
@@ -128,6 +132,9 @@ class ScoreService
                 'cr.id',
                 'cr.row_id',
                 'cfg.section_id',
+                $hasAseanstatsOnlyCol
+                    ? DB::raw('COALESCE(cfg.aseanstats_only, 0) as aseanstats_only')
+                    : DB::raw('0 as aseanstats_only'),
                 'cr.series',
                 'cr.machine_readability',
                 'cr.proprietary',
@@ -138,14 +145,18 @@ class ScoreService
             ->where('cr.assessment_country_id', $assessmentCountry->id)
             ->get();
 
-        $rowsWithScores = collect($rows)->map(function ($row) use ($referenceYear) {
-            $cov = self::computeRowCoverage((string) $row->series, $referenceYear);
+        $rowsWithScores = collect($rows)->map(function ($row) use ($referenceYear, $isAseanstatsOwner) {
+            $seriesRaw = trim((string) ($row->series ?? ''));
+            $cov = self::computeRowCoverage($seriesRaw, $referenceYear);
             $openness = $cov['is_na'] ? null : self::computeRowOpenness((array) $row);
+            $isAseanstatsOnly = ((int) ($row->aseanstats_only ?? 0)) === 1;
+            $isEligible = !$cov['is_na'] && (!$isAseanstatsOnly || $isAseanstatsOwner);
 
             return [
                 'id' => (int) $row->id,
                 'row_id' => (int) $row->row_id,
                 'section_id' => (int) $row->section_id,
+                'aseanstats_only' => $isAseanstatsOnly,
                 'count_all' => $cov['count_all'],
                 'count_5' => $cov['count_5'],
                 'count_10' => $cov['count_10'],
@@ -155,6 +166,7 @@ class ScoreService
                 'coverage_sub_score' => $cov['is_na'] ? 0.0 : (float) $cov['c'],
                 'opennes_sub_score' => $cov['is_na'] ? 0.0 : (float) $openness,
                 'is_na' => (bool) $cov['is_na'],
+                'is_eligible' => $isEligible,
             ];
         })->values();
 
@@ -182,14 +194,14 @@ class ScoreService
             AssessmentSummary::where('assessment_country_id', $assessmentCountry->id)->delete();
 
             foreach ($bySection as $sectionId => $sectionRows) {
-                // NA rows are part of the denominator and contribute zero to actual score.
-                $nRows = $sectionRows->count();
+                $eligibleRows = $sectionRows->filter(fn ($r) => (bool) ($r['is_eligible'] ?? false));
+                $nRows = $eligibleRows->count();
 
                 $coverageMax = $nRows * 3;
                 $opennessMax = $nRows * 5;
 
-                $coverageActual = (float) $sectionRows->sum(fn ($r) => (float) ($r['coverage_sub_score'] ?? 0));
-                $opennessActual = (float) $sectionRows->sum(fn ($r) => (float) ($r['opennes_sub_score'] ?? 0));
+                $coverageActual = (float) $eligibleRows->sum(fn ($r) => (float) ($r['coverage_sub_score'] ?? 0));
+                $opennessActual = (float) $eligibleRows->sum(fn ($r) => (float) ($r['opennes_sub_score'] ?? 0));
 
                 $coverageRatio = $coverageMax > 0 ? ($coverageActual / $coverageMax) : 0;
                 $opennessRatio = $opennessMax > 0 ? ($opennessActual / $opennessMax) : 0;
