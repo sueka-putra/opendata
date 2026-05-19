@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version Metadata
+    |--------------------------------------------------------------------------
+    |
+    | These values can be injected during deployment (for example from
+    | GitHub Actions) and exposed by internal version endpoints.
+    |
+    */
+
+    'version' => env('APP_VERSION'),
+    'commit_sha' => env('APP_COMMIT_SHA', env('GITHUB_SHA')),
+    'build_date' => env('APP_BUILD_DATE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

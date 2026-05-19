@@ -13,6 +13,35 @@
       </div>
     </div>
 
+    <div class="modal fade period-dialog" id="uploadTemplateDialog" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Upload Template</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted mb-2" id="uploadTemplateCaption">Select participant and upload Excel template.</p>
+            <p class="small mb-2"><span class="text-muted">Mapping mode:</span> <span id="uploadMappingMode" class="fw-semibold text-secondary">-</span></p>
+            <div id="uploadDebugWrap" class="small text-muted mb-2" style="display:none;">
+              <div class="fw-semibold mb-1">Debug Parser</div>
+              <pre id="uploadDebugText" class="mb-0 p-2 border rounded bg-light" style="max-height:180px; overflow:auto; white-space:pre-wrap;"></pre>
+            </div>
+            <div id="uploadDropzone" class="assessment-upload-dropzone">
+              <input type="file" id="uploadTemplateInput" class="d-none" accept=".xlsx,.xls">
+              <div class="assessment-upload-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+              <p class="mb-1 fw-semibold">Click or drop file here</p>
+              <p id="uploadTemplateFileName" class="small mb-0 text-muted">No file selected.</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn od-btn-outline" type="button" data-bs-dismiss="modal">Cancel</button>
+            <button class="btn od-btn-primary" type="button" id="btnUploadTemplateProcess">Upload</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="period-table-card mt-3">
       <div class="table-responsive">
         <table class="table period-table align-middle mb-0">
@@ -39,9 +68,52 @@
 </div>
 @endsection
 
+@push('styles')
+<style>
+  .assessment-upload-dropzone {
+    border: 1.5px dashed #9cb5d6;
+    border-radius: 12px;
+    background: #f8fbff;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color .15s ease, background-color .15s ease;
+    padding: 16px;
+  }
+  .assessment-upload-dropzone:hover,
+  .assessment-upload-dropzone.is-drag-over {
+    border-color: #2c60a7;
+    background: #edf4fd;
+  }
+  .assessment-upload-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #eaf0f8;
+    color: #2c60a7;
+    font-size: 1.25rem;
+    margin-bottom: 4px;
+  }
+</style>
+@endpush
+
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   const periodId = @json((int) request()->route('periodId'));
+  let uploadTemplateModal = null;
+  let uploadTemplateFile = null;
+  let selectedUploadCountry = null;
+  let uploadMappingMode = 'unknown';
+  let uploadDebugInfo = null;
 
   function fmtDateTime(value) {
     if (!value) return '-';
@@ -109,6 +181,7 @@
           ${(isOpen && (row.is_submitted === true || row.is_submitted === 1 || row.is_submitted === '1'))
             ? `<button class="btn btn-sm btn-outline-warning me-1 btn-unlock-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Unlock</button>`
             : ''}
+          ${isOpen ? `<button class="btn btn-sm btn-outline-secondary me-1 btn-upload-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Upload</button>` : ''}
           <button class="btn btn-sm btn-outline-primary me-1 btn-print-country" type="button" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Print</button>
           <a class="btn btn-sm btn-outline-dark" href="/trx/form?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(row.country_code)}">${isOpen ? 'Open' : 'View'}</a>
         </td>
@@ -312,12 +385,431 @@
     }
   }
 
+  function normalizeTemplateHeader(value) {
+    return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function normalizeCode(value) {
+    return String(value ?? '').trim().toUpperCase();
+  }
+
+  function cellText(value) {
+    return String(value ?? '').trim();
+  }
+
+  function parseTemplateMetric(value, allowed) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    const rounded = Math.round(num * 100) / 100;
+    for (const candidate of allowed) {
+      if (Math.abs(rounded - candidate) < 0.0001) return candidate;
+    }
+    return null;
+  }
+
+  function parseSummaryNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseSummaryRatio(value) {
+    const num = parseSummaryNumber(value);
+    if (num === null) return null;
+    if (num > 1 && num <= 100) return Math.round((num / 100) * 1000000) / 1000000;
+    return Math.round(num * 1000000) / 1000000;
+  }
+
+  async function parseInputRowsFromWorkbook(workbook, codePrefixes = []) {
+    const sheetName = workbook.SheetNames.includes('Input') ? 'Input' : workbook.SheetNames[0];
+    if (!sheetName) {
+      const dbg = { input_sheet: null, reason: 'no-worksheet' };
+      setUploadDebug(dbg);
+      throw new Error('Template has no worksheet.');
+    }
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!Array.isArray(rows) || rows.length < 1) {
+      const dbg = { input_sheet: sheetName, reason: 'input-sheet-empty', input_total_rows: Array.isArray(rows) ? rows.length : 0 };
+      setUploadDebug(dbg);
+      throw new Error('Input sheet is empty.');
+    }
+
+    const headerIndexByKey = new Map();
+    const collectHeader = (row) => row.forEach((col, idx) => {
+      const key = normalizeTemplateHeader(col);
+      if (key && !headerIndexByKey.has(key)) headerIndexByKey.set(key, idx);
+    });
+    collectHeader(rows[2] || []);
+    collectHeader(rows[3] || []);
+
+    const findIdx = (aliases, fallback) => {
+      for (const k of aliases) if (headerIndexByKey.has(k)) return Number(headerIndexByKey.get(k));
+      return fallback;
+    };
+
+    const idxSeries = findIdx(['series', 'coverageseries'], 5);
+    const idxMachine = findIdx(['machinereadilibility', 'machinereadibility', 'machinereadability'], 13);
+    const idxProp = findIdx(['proprietary', 'nonproprietary'], 14);
+    const idxDownload = findIdx(['downloadoptions'], 15);
+    const idxMetadata = findIdx(['metadata', 'metadataavailability'], 16);
+    const idxTerm = findIdx(['termofuse', 'termofuser'], 17);
+    const idxUrl = findIdx(['url', 'urls', 'relevanturl', 'relevanturls'], 19);
+    const idxRemark = findIdx(['remark', 'remarks', 'note', 'notes'], 20);
+
+    const codePattern = /^[A-Z]{2}\.\d{3}\.\d{3}\.\d{3}$/;
+    const scanned = [];
+    let seenDataRow = false;
+    let emptyStreak = 0;
+    const hardLimit = Math.min(rows.length, 1200);
+    let rowsChecked = 0;
+    let rowsWithSignal = 0;
+    let stoppedBy = '';
+    for (let i = 4; i < hardLimit; i += 1) {
+      rowsChecked += 1;
+      const x = rows[i] || [];
+      const b = cellText(x[1]);
+      const c = cellText(x[2]);
+      const d = cellText(x[3]);
+      const e = cellText(x[4]);
+      const f = cellText(x[5]);
+      const n = cellText(x[13]);
+      const o = cellText(x[14]);
+      const p = cellText(x[15]);
+      const q = cellText(x[16]);
+      const r = cellText(x[17]);
+      const t = cellText(x[19]);
+      const u = cellText(x[20]);
+      const hasSignal = !!(b || c || d || e || f || n || o || p || q || r || t || u || cellText(x[0]));
+
+      if (b.toLowerCase() === 'total') {
+        stoppedBy = `total at row ${i + 1}`;
+        break;
+      }
+      if (!hasSignal) {
+        if (seenDataRow) {
+          emptyStreak += 1;
+          if (emptyStreak >= 5) {
+            stoppedBy = `empty-streak(5) after row ${i + 1}`;
+            break;
+          }
+        }
+        continue;
+      }
+      rowsWithSignal += 1;
+      seenDataRow = true;
+      emptyStreak = 0;
+
+      const series = cellText(x[idxSeries]);
+      scanned.push({
+        code_raw: normalizeCode(x[0]),
+        source_row: i + 1,
+        series,
+        machine_readability: parseTemplateMetric(x[idxMachine], [-1, 0, 1]),
+        proprietary: parseTemplateMetric(x[idxProp], [-1, 0, 1]),
+        download_options: parseTemplateMetric(x[idxDownload], [-1, 0, 0.5, 1]),
+        metadata: parseTemplateMetric(x[idxMetadata], [-1, 0, 0.5, 1]),
+        term_of_use: parseTemplateMetric(x[idxTerm], [-1, 0, 0.5, 1]),
+        urls: cellText(x[idxUrl]),
+        remarks: cellText(x[idxRemark]),
+      });
+    }
+
+    const parsedByCode = scanned
+      .filter((r) => codePattern.test(r.code_raw))
+      .map((r) => ({ ...r, code: r.code_raw }));
+    const debug = {
+      input_sheet: sheetName,
+      input_total_rows: rows.length,
+      scan_start_excel_row: 5,
+      scan_hard_limit_excel_row: hardLimit,
+      scan_rows_checked: rowsChecked,
+      scan_rows_with_signal: rowsWithSignal,
+      scan_rows_collected: scanned.length,
+      scan_stop_reason: stoppedBy || 'eof',
+      valid_codes_in_col_a: parsedByCode.length,
+      fallback_codes_from_db: 0,
+      fallback_rows_assigned: 0,
+    };
+    if (parsedByCode.length) {
+      return {
+        mode: 'code-based',
+        rows: parsedByCode.map(({ code_raw, ...rest }) => rest),
+        debug,
+      };
+    }
+
+    const fallbackCodes = (Array.isArray(codePrefixes) ? codePrefixes : [])
+      .map((v) => normalizeCode(v))
+      .filter((v) => codePattern.test(v));
+    debug.fallback_codes_from_db = fallbackCodes.length;
+    if (!scanned.length) {
+      setUploadDebug({
+        ...debug,
+        reason: 'no-valid-detail-rows',
+        country_code: selectedUploadCountry?.countryCode || '',
+        db_prefix_count: fallbackCodes.length,
+      });
+      throw new Error('No valid detail rows found in Input sheet.');
+    }
+
+    let assigned = [];
+    if (fallbackCodes.length > 0) {
+      const limit = Math.min(scanned.length, fallbackCodes.length);
+      for (let i = 0; i < limit; i += 1) {
+        assigned.push({
+          ...scanned[i],
+          code: fallbackCodes[i],
+        });
+      }
+      debug.fallback_rows_assigned = assigned.length;
+    } else {
+      assigned = scanned.map((row, i) => ({
+        ...row,
+        code: `__ORDER__${i + 1}`,
+      }));
+      debug.fallback_rows_assigned = assigned.length;
+      debug.reason = 'fallback-by-order-token';
+    }
+    return {
+      mode: 'order-based (fallback)',
+      rows: assigned.map(({ code_raw, ...rest }) => rest),
+      debug,
+    };
+  }
+
+  function setUploadMappingMode(modeText, tone = 'secondary') {
+    uploadMappingMode = String(modeText || 'unknown');
+    const el = document.getElementById('uploadMappingMode');
+    if (!el) return;
+    el.classList.remove('text-secondary', 'text-success', 'text-warning');
+    el.classList.add(`text-${tone}`);
+    el.textContent = uploadMappingMode;
+  }
+
+  function setUploadDebug(info) {
+    uploadDebugInfo = info || null;
+    const wrap = document.getElementById('uploadDebugWrap');
+    const el = document.getElementById('uploadDebugText');
+    if (!wrap || !el) return;
+    if (!uploadDebugInfo) {
+      wrap.style.display = 'none';
+      el.textContent = '';
+      return;
+    }
+    wrap.style.display = '';
+    el.textContent = JSON.stringify(uploadDebugInfo, null, 2);
+  }
+
+  async function fetchCodePrefixesByCountry(assessmentCountryId) {
+    const id = Number(assessmentCountryId || 0);
+    if (!id) return [];
+    const url = `/api/trx/countries/template-prefixes/${encodeURIComponent(id)}`;
+    const response = await odFetch(url);
+    const prefixes = Array.isArray(response?.data?.prefixes) ? response.data.prefixes : [];
+    return prefixes
+      .map((r) => normalizeCode(r))
+      .filter((v) => !!v);
+  }
+
+  function detectSummarySheetName(sheetNames) {
+    if (!Array.isArray(sheetNames) || !sheetNames.length) return null;
+    const exact = sheetNames.find((n) => normalizeTemplateHeader(n) === 'summaryreport');
+    if (exact) return exact;
+    return sheetNames.find((n) => normalizeTemplateHeader(n).includes('summary')) || null;
+  }
+
+  async function parseSummaryFromWorkbook(workbook) {
+    const summarySheetName = detectSummarySheetName(workbook.SheetNames);
+    if (!summarySheetName) throw new Error('Summary Report sheet not found.');
+    const sheet = workbook.Sheets[summarySheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!Array.isArray(rows) || rows.length < 1) throw new Error('Summary Report sheet is empty.');
+
+    const headerRow = rows[5 - 1] || [];
+    let sectionsColIdx = headerRow.findIndex((v) => normalizeTemplateHeader(v) === 'sections');
+    if (sectionsColIdx < 0) {
+      const fallbackRow = rows[4 - 1] || [];
+      sectionsColIdx = fallbackRow.findIndex((v) => normalizeTemplateHeader(v) === 'sections');
+    }
+    if (sectionsColIdx < 0) {
+      sectionsColIdx = 1; // default B
+    }
+
+    const idxCoverageMax = sectionsColIdx + 1; // C
+    const idxCoverageActual = sectionsColIdx + 2; // D
+    const idxCoverageSub = sectionsColIdx + 3; // E
+    const idxOpennesMax = sectionsColIdx + 4; // F
+    const idxOpennesActual = sectionsColIdx + 5; // G
+    const idxOpennesSub = sectionsColIdx + 6; // H
+    const idxOverall = sectionsColIdx + 7; // I
+
+    const sections = [];
+    for (let excelRow = 6; excelRow <= 9; excelRow += 1) {
+      const row = rows[excelRow - 1] || [];
+      const coverageMax = parseSummaryNumber(row[idxCoverageMax]);
+      const coverageActual = parseSummaryNumber(row[idxCoverageActual]);
+      const coverageSub = parseSummaryRatio(row[idxCoverageSub]);
+      const opennesMax = parseSummaryNumber(row[idxOpennesMax]);
+      const opennesActual = parseSummaryNumber(row[idxOpennesActual]);
+      const opennesSub = parseSummaryRatio(row[idxOpennesSub]);
+      const overall = parseSummaryRatio(row[idxOverall]);
+      sections.push({
+        coverage_max_score: coverageMax ?? 0,
+        coverage_actual_score: coverageActual ?? 0,
+        coverage_sub_score_ratio: coverageSub ?? 0,
+        opennes_max_score: opennesMax ?? 0,
+        opennes_actual_score: opennesActual ?? 0,
+        opennes_sub_score_ratio: opennesSub ?? 0,
+        overall_score_ratio: overall ?? 0,
+      });
+    }
+
+    const weightedRow = rows[10 - 1] || [];
+    const weighted = {
+      coverage_sub_score_ratio: parseSummaryRatio(weightedRow[idxCoverageSub]) ?? 0,
+      opennes_sub_score_ratio: parseSummaryRatio(weightedRow[idxOpennesSub]) ?? 0,
+      overall_score_ratio: parseSummaryRatio(weightedRow[idxOverall]) ?? 0,
+    };
+
+    if (!sections.length) {
+      throw new Error('Failed to parse summary sections from Summary Report sheet.');
+    }
+    if (!weighted) {
+      throw new Error('Failed to parse Weighted Score from Summary Report sheet.');
+    }
+    return { sections, weighted, sheetName: summarySheetName };
+  }
+
+  function setUploadTemplateFile(file) {
+    uploadTemplateFile = file || null;
+    const label = document.getElementById('uploadTemplateFileName');
+    if (label) label.textContent = uploadTemplateFile ? uploadTemplateFile.name : 'No file selected.';
+  }
+
+  async function openUploadTemplateDialog(countryId, countryCode, countryName) {
+    if (!window.__periodIsOpen) {
+      odAlert('Period is completed. Upload is disabled.', 'Upload');
+      return;
+    }
+    selectedUploadCountry = {
+      id: Number(countryId || 0),
+      countryCode: String(countryCode || ''),
+      name: countryName || '-',
+    };
+    const ok = await odConfirm(
+      `Upload template for ${selectedUploadCountry.name}? Data and summary for this participant will be overwritten by the uploaded file.`,
+      'Confirm Upload Template'
+    );
+    if (!ok) return;
+
+    setUploadTemplateFile(null);
+    setUploadMappingMode('-', 'secondary');
+    setUploadDebug(null);
+    const input = document.getElementById('uploadTemplateInput');
+    if (input) input.value = '';
+    const caption = document.getElementById('uploadTemplateCaption');
+    if (caption) caption.textContent = `Target participant: ${selectedUploadCountry.name}`;
+    uploadTemplateModal.show();
+  }
+
+  async function processUploadTemplate() {
+    if (!selectedUploadCountry?.id) throw new Error('Country target not selected.');
+    if (!uploadTemplateFile) throw new Error('Please select an Excel file first.');
+    if (!window.XLSX) throw new Error('Excel parser not available.');
+
+    const buffer = await uploadTemplateFile.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const codePrefixes = await fetchCodePrefixesByCountry(selectedUploadCountry.id);
+    setUploadDebug({
+      stage: 'before-parse',
+      country_code: selectedUploadCountry.countryCode || '',
+      db_prefix_count: Array.isArray(codePrefixes) ? codePrefixes.length : 0,
+    });
+    const parsedInput = await parseInputRowsFromWorkbook(workbook, codePrefixes);
+    const parsedRows = Array.isArray(parsedInput?.rows) ? parsedInput.rows : [];
+    const mappingMode = String(parsedInput?.mode || 'unknown');
+    setUploadDebug({
+      ...(parsedInput?.debug || {}),
+      country_code: selectedUploadCountry.countryCode || '',
+      db_prefix_count: Array.isArray(codePrefixes) ? codePrefixes.length : 0,
+      parsed_rows_final: parsedRows.length,
+    });
+    setUploadMappingMode(mappingMode, mappingMode.includes('fallback') ? 'warning' : 'success');
+    const parsedSummary = await parseSummaryFromWorkbook(workbook);
+
+    const response = await odFetch('/api/trx/countries/upload-template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        periodid: periodId,
+        countryid: selectedUploadCountry.id,
+        rows: parsedRows,
+        summary: parsedSummary,
+      }),
+    });
+
+    const result = response?.data || {};
+    const uploaded = Number(result.uploaded || 0);
+    const matched = Number(result.matched || 0);
+    const unmatched = Math.max(0, uploaded - matched);
+    odToast(`Template uploaded for ${selectedUploadCountry.name}. Mapping: ${mappingMode}. Uploaded: ${uploaded}, matched: ${matched}, unmatched: ${unmatched}.`);
+    await loadCountries();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    uploadTemplateModal = new bootstrap.Modal(document.getElementById('uploadTemplateDialog'));
+    const uploadDropzone = document.getElementById('uploadDropzone');
+    const uploadInput = document.getElementById('uploadTemplateInput');
+    const uploadProcessBtn = document.getElementById('btnUploadTemplateProcess');
+
+    uploadDropzone.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', (event) => {
+      const file = event.target.files?.[0] || null;
+      setUploadTemplateFile(file);
+    });
+    uploadDropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.add('is-drag-over');
+    });
+    uploadDropzone.addEventListener('dragleave', () => uploadDropzone.classList.remove('is-drag-over'));
+    uploadDropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      uploadDropzone.classList.remove('is-drag-over');
+      const file = event.dataTransfer?.files?.[0] || null;
+      if (!file) return;
+      uploadInput.value = '';
+      setUploadTemplateFile(file);
+    });
+    uploadProcessBtn.addEventListener('click', async () => {
+      uploadProcessBtn.disabled = true;
+      try {
+        await processUploadTemplate();
+        uploadTemplateModal.hide();
+      } catch (err) {
+        if (uploadDebugInfo) {
+          console.error('Upload template parser debug:', uploadDebugInfo);
+        }
+        odAlert(err?.message || 'Failed to process upload template.', 'Upload Template');
+      } finally {
+        uploadProcessBtn.disabled = false;
+      }
+    });
+
     document.getElementById('btnRefreshCountries').addEventListener('click', loadCountries);
     document.getElementById('tbCountries').addEventListener('click', (event) => {
       const unlockBtn = event.target.closest('.btn-unlock-country');
       if (unlockBtn) {
         unlockCountry(unlockBtn.dataset.countryId || '', unlockBtn.dataset.countryName || '', unlockBtn);
+        return;
+      }
+      const uploadBtn = event.target.closest('.btn-upload-country');
+      if (uploadBtn) {
+        openUploadTemplateDialog(
+          uploadBtn.dataset.countryId || '',
+          uploadBtn.dataset.countryCode || '',
+          uploadBtn.dataset.countryName || ''
+        );
         return;
       }
       const btn = event.target.closest('.btn-print-country');

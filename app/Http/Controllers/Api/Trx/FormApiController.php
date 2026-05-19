@@ -651,7 +651,11 @@ class FormApiController extends Controller
             ->where('period_id', $payload['periodid'])
             ->firstOrFail();
 
-        DB::transaction(function () use ($payload, $ac) {
+        $ratioToPercent = static function ($value): float {
+            return round(((float) $value) * 100, 2);
+        };
+
+        DB::transaction(function () use ($payload, $ac, $ratioToPercent) {
             foreach ($payload['sections'] as $row) {
                 $sectionId = (int) $row['section_id'];
                 DB::table('od_trx_assessment_summaries')
@@ -663,11 +667,11 @@ class FormApiController extends Controller
                         [
                             'coverage_max_score' => round((float) $row['coverage_max_score'], 2),
                             'coverage_actual_score' => round((float) $row['coverage_actual_score'], 2),
-                            'coverage_sub_score' => round((float) $row['coverage_sub_score'], 2),
+                            'coverage_sub_score' => $ratioToPercent($row['coverage_sub_score']),
                             'opennes_max_score' => round((float) $row['opennes_max_score'], 2),
                             'opennes_actual_score' => round((float) $row['opennes_actual_score'], 2),
-                            'opennes_sub_score' => round((float) $row['opennes_sub_score'], 2),
-                            'overall_score' => round((float) $row['overall_score'], 2),
+                            'opennes_sub_score' => $ratioToPercent($row['opennes_sub_score']),
+                            'overall_score' => $ratioToPercent($row['overall_score']),
                         ]
                     );
             }
@@ -682,11 +686,11 @@ class FormApiController extends Controller
                     [
                         'coverage_max_score' => 0,
                         'coverage_actual_score' => 0,
-                        'coverage_sub_score' => round((float) $weighted['coverage_sub_score'], 2),
+                        'coverage_sub_score' => $ratioToPercent($weighted['coverage_sub_score']),
                         'opennes_max_score' => 0,
                         'opennes_actual_score' => 0,
-                        'opennes_sub_score' => round((float) $weighted['opennes_sub_score'], 2),
-                        'overall_score' => round((float) $weighted['overall_score'], 2),
+                        'opennes_sub_score' => $ratioToPercent($weighted['opennes_sub_score']),
+                        'overall_score' => $ratioToPercent($weighted['overall_score']),
                     ]
                 );
 

@@ -14,6 +14,21 @@ class CountryApiController extends Controller
 {
     use JsonEnvelope;
 
+    private function sanitizeTemplateScore($value, array $allowed): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $num = round((float) $value, 2);
+        foreach ($allowed as $a) {
+            if (abs($num - (float) $a) < 0.0001) {
+                return (float) $a;
+            }
+        }
+
+        return null;
+    }
+
     private function classifyRowProgress(array $row): string
     {
         $seriesRaw = trim((string) ($row['series'] ?? ''));
@@ -184,6 +199,210 @@ class CountryApiController extends Controller
                 'country_code' => (string) $ac->country_code,
                 'is_submitted' => false,
             ],
+        ]);
+    }
+
+    public function templatePrefixes(int $assessmentCountryId)
+    {
+        $ac = AssessmentCountry::findOrFail($assessmentCountryId);
+        $period = AssessmentPeriod::findOrFail((int) $ac->period_id);
+
+        $prefixes = DB::table('od_mst_configuration_rows')
+            ->where('config_id', (int) $period->config_id)
+            ->whereNotNull('prefix')
+            ->orderBy('seq_no')
+            ->orderBy('id')
+            ->pluck('prefix')
+            ->map(fn ($p) => strtoupper(trim((string) $p)))
+            ->filter(fn ($p) => $p !== '')
+            ->values();
+
+        return $this->ok([
+            'assessment_country_id' => (int) $ac->id,
+            'country_code' => (string) $ac->country_code,
+            'prefixes' => $prefixes,
+        ]);
+    }
+
+    public function uploadTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'periodid' => 'required|integer',
+            'countryid' => 'required|integer',
+            'rows' => 'required|array',
+            'rows.*.code' => 'required|string|max:100',
+            'rows.*.source_row' => 'nullable|integer|min:1',
+            'rows.*.series' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::SERIES_MAX_LENGTH,
+            'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
+            'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
+            'rows.*.urls' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::URLS_MAX_LENGTH,
+            'rows.*.remarks' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::REMARKS_MAX_LENGTH,
+            'summary' => 'required|array',
+            'summary.sections' => 'required|array|min:1',
+            'summary.sections.*.coverage_max_score' => 'required|numeric',
+            'summary.sections.*.coverage_actual_score' => 'required|numeric',
+            'summary.sections.*.coverage_sub_score_ratio' => 'required|numeric',
+            'summary.sections.*.opennes_max_score' => 'required|numeric',
+            'summary.sections.*.opennes_actual_score' => 'required|numeric',
+            'summary.sections.*.opennes_sub_score_ratio' => 'required|numeric',
+            'summary.sections.*.overall_score_ratio' => 'required|numeric',
+            'summary.weighted' => 'required|array',
+            'summary.weighted.coverage_sub_score_ratio' => 'required|numeric',
+            'summary.weighted.opennes_sub_score_ratio' => 'required|numeric',
+            'summary.weighted.overall_score_ratio' => 'required|numeric',
+        ]);
+
+        $ac = AssessmentCountry::where('id', $payload['countryid'])
+            ->where('period_id', $payload['periodid'])
+            ->firstOrFail();
+        $period = AssessmentPeriod::findOrFail($payload['periodid']);
+        if (!$period->active) {
+            return $this->fail('Assessment period is completed', 409);
+        }
+
+        $configRows = DB::table('od_mst_configuration_rows')
+            ->where('config_id', (int) $period->config_id)
+            ->whereNotNull('prefix')
+            ->orderBy('seq_no')
+            ->orderBy('id')
+            ->get(['id', 'prefix']);
+        $configRowByPrefix = $configRows->mapWithKeys(
+            fn ($r) => [strtoupper(trim((string) $r->prefix)) => (int) $r->id]
+        );
+        $orderedRowIds = $configRows
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $orderedSummarySectionIds = DB::table('od_mst_configuration_rows')
+            ->where('config_id', (int) $period->config_id)
+            ->whereNotNull('section_id')
+            ->distinct()
+            ->orderBy('section_id')
+            ->pluck('section_id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($orderedSummarySectionIds->isEmpty()) {
+            return $this->fail('No section mapping found for active configuration.', 422);
+        }
+
+        if ($orderedSummarySectionIds->count() < count($payload['summary']['sections'])) {
+            return $this->fail('Summary section count does not match existing assessment structure.', 422);
+        }
+
+        $ratioToPercent = static fn ($value): float => round(((float) $value) * 100, 2);
+
+        $matched = 0;
+        $unmatched = [];
+        DB::transaction(function () use ($payload, $ac, $configRowByPrefix, $orderedRowIds, $orderedSummarySectionIds, $ratioToPercent, &$matched, &$unmatched) {
+            foreach ($payload['rows'] as $idx => $r) {
+                $prefix = strtoupper(trim((string) ($r['code'] ?? '')));
+                $sourceRow = isset($r['source_row']) ? (int) $r['source_row'] : null;
+                $rowId = 0;
+                if ($prefix !== '' && $configRowByPrefix->has($prefix)) {
+                    $rowId = (int) $configRowByPrefix->get($prefix);
+                } elseif (preg_match('/^__ORDER__(\d+)$/', $prefix, $m) === 1) {
+                    $order = max(1, (int) ($m[1] ?? 0));
+                    $mapped = $orderedRowIds->get($order - 1);
+                    $rowId = (int) ($mapped ?? 0);
+                } else {
+                    $mapped = $orderedRowIds->get((int) $idx);
+                    $rowId = (int) ($mapped ?? 0);
+                }
+
+                if ($rowId <= 0) {
+                    $unmatched[] = [
+                        'code' => $prefix,
+                        'source_row' => $sourceRow,
+                        'reason' => 'Code not mapped to active configuration rows.',
+                    ];
+                    continue;
+                }
+                $series = trim((string) ($r['series'] ?? ''));
+                $isSeriesNa = strtoupper($series) === 'NA';
+                $machineReadability = $this->sanitizeTemplateScore($r['machine_readability'] ?? null, [-1.0, 0.0, 1.0]);
+                $proprietary = $this->sanitizeTemplateScore($r['proprietary'] ?? null, [-1.0, 0.0, 1.0]);
+                $downloadOptions = $this->sanitizeTemplateScore($r['download_options'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $metadata = $this->sanitizeTemplateScore($r['metadata'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $termOfUse = $this->sanitizeTemplateScore($r['term_of_use'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+
+                if ($isSeriesNa) {
+                    $machineReadability = -1;
+                    $proprietary = -1;
+                    $downloadOptions = -1;
+                    $metadata = -1;
+                    $termOfUse = -1;
+                }
+
+                DB::table('od_trx_assessment_country_rows')->updateOrInsert(
+                    [
+                        'assessment_country_id' => $ac->id,
+                        'row_id' => $rowId,
+                    ],
+                    [
+                        'series' => $series,
+                        'machine_readability' => $machineReadability,
+                        'proprietary' => $proprietary,
+                        'download_options' => $downloadOptions,
+                        'metadata' => $metadata,
+                        'term_of_use' => $termOfUse,
+                        'urls' => $r['urls'] ?? null,
+                        'remarks' => $r['remarks'] ?? null,
+                    ]
+                );
+                $matched++;
+            }
+
+            foreach ($payload['summary']['sections'] as $idx => $section) {
+                $sectionId = (int) $orderedSummarySectionIds[$idx];
+                DB::table('od_trx_assessment_summaries')->updateOrInsert(
+                    [
+                        'assessment_country_id' => (int) $ac->id,
+                        'section_id' => $sectionId,
+                    ],
+                    [
+                        'coverage_max_score' => round((float) $section['coverage_max_score'], 2),
+                        'coverage_actual_score' => round((float) $section['coverage_actual_score'], 2),
+                        'coverage_sub_score' => $ratioToPercent($section['coverage_sub_score_ratio']),
+                        'opennes_max_score' => round((float) $section['opennes_max_score'], 2),
+                        'opennes_actual_score' => round((float) $section['opennes_actual_score'], 2),
+                        'opennes_sub_score' => $ratioToPercent($section['opennes_sub_score_ratio']),
+                        'overall_score' => $ratioToPercent($section['overall_score_ratio']),
+                    ]
+                );
+            }
+
+            $weighted = $payload['summary']['weighted'];
+            DB::table('od_trx_assessment_summaries')->updateOrInsert(
+                [
+                    'assessment_country_id' => (int) $ac->id,
+                    'section_id' => 0,
+                ],
+                [
+                    'coverage_max_score' => 0,
+                    'coverage_actual_score' => 0,
+                    'coverage_sub_score' => $ratioToPercent($weighted['coverage_sub_score_ratio']),
+                    'opennes_max_score' => 0,
+                    'opennes_actual_score' => 0,
+                    'opennes_sub_score' => $ratioToPercent($weighted['opennes_sub_score_ratio']),
+                    'overall_score' => $ratioToPercent($weighted['overall_score_ratio']),
+                ]
+            );
+
+            $ac->update(['modified_by' => (int) auth()->id()]);
+        });
+
+        AuditLogger::log($request, 'upload template from countries', $ac->id);
+
+        return $this->ok([
+            'uploaded' => count($payload['rows']),
+            'matched' => $matched,
+            'unmatched' => $unmatched,
+            'saved_summary_sections' => count($payload['summary']['sections']),
         ]);
     }
 }

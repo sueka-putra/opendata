@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\Trx\PeriodApiController;
 use App\Http\Controllers\Api\Trx\CountryApiController;
 use App\Http\Controllers\Api\Trx\FormApiController;
 use App\Http\Controllers\Api\Trx\DashboardAssessmentApiController;
+use App\Http\Controllers\Api\Internal\VersionApiController;
+
+Route::get('/i/version', [VersionApiController::class, 'show']);
 
 Route::middleware(['web', 'auth'])->group(function () {
 
@@ -47,8 +50,10 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('/period', [PeriodApiController::class, 'store'])->middleware('admin.only');
         Route::put('/period/{periodId}', [PeriodApiController::class, 'close'])->middleware('admin.only');
 
+        Route::get('/countries/template-prefixes/{assessmentCountryId}', [CountryApiController::class, 'templatePrefixes'])->middleware('admin.only');
         Route::get('/countries/{periodId}', [CountryApiController::class, 'index'])->middleware('admin.only');
         Route::post('/countries/{assessmentCountryId}/unlock', [CountryApiController::class, 'unlock'])->middleware('admin.only');
+        Route::post('/countries/upload-template', [CountryApiController::class, 'uploadTemplate'])->middleware('admin.only');
 
         Route::get('/form', [FormApiController::class, 'show']);
         Route::get('/form/logs', [FormApiController::class, 'logs']);
