@@ -53,9 +53,11 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::get('/countries/template-prefixes/{assessmentCountryId}', [CountryApiController::class, 'templatePrefixes'])->middleware('admin.only');
         Route::get('/countries/{periodId}', [CountryApiController::class, 'index'])->middleware('admin.only');
         Route::post('/countries/{assessmentCountryId}/unlock', [CountryApiController::class, 'unlock'])->middleware('admin.only');
+        Route::post('/countries/attach-template', [CountryApiController::class, 'attachTemplate'])->middleware('admin.only');
         Route::post('/countries/upload-template', [CountryApiController::class, 'uploadTemplate'])->middleware('admin.only');
 
         Route::get('/form', [FormApiController::class, 'show']);
+        Route::get('/form/template/download', [FormApiController::class, 'downloadTemplate'])->name('api.trx.form.template.download');
         Route::get('/form/logs', [FormApiController::class, 'logs']);
         Route::post('/form', [FormApiController::class, 'update']);
         Route::post('/form/summary', [FormApiController::class, 'updateSummary']);

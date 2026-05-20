@@ -2,7 +2,6 @@
 
 @section('content')
 @php
-  $uploadTemplateUrl = '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx';
   $backUrl = route('dashboard');
   $referer = (string) request()->headers->get('referer', '');
   if ($referer !== '') {
@@ -18,17 +17,6 @@
       $backUrl = $path . $query;
     }
   }
-  $templateCandidates = [
-    public_path('template/ACSS Open Data Assessment Tools.xlsx') => '/template/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
-    public_path('templates/ACSS Open Data Assessment Tools.xlsx') => '/templates/ACSS%20Open%20Data%20Assessment%20Tools.xlsx',
-    public_path('templates/ACSS Open Data Assesment Tools.xlsx') => '/templates/ACSS%20Open%20Data%20Assesment%20Tools.xlsx',
-  ];
-  foreach ($templateCandidates as $path => $url) {
-    if (file_exists($path)) {
-      $uploadTemplateUrl = $url;
-      break;
-    }
-  }
 @endphp
 <div class="period-theme-wrap">
   <div class="period-theme-shell assessment-shell">
@@ -40,10 +28,10 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <a class="btn od-btn-outline assessment-form-action-btn" id="btnBackForm" href="{{ route('dashboard') }}">Back</a>
         <div class="dropdown">
-          <button class="btn od-btn-primary dropdown-toggle assessment-form-action-btn" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Upload</button>
+          <button class="btn od-btn-primary dropdown-toggle assessment-form-action-btn" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Template</button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btnUploadMenu">
-            <li><a class="dropdown-item" id="btnDownloadTemplate" href="{{ $uploadTemplateUrl }}" download>Download Template</a></li>
-            <li><button class="dropdown-item" type="button" id="btnUploadTemplateOpen">Upload Template</button></li>
+            <li><a class="dropdown-item" id="btnDownloadTemplate" href="#" download>Download</a></li>
+            <li><button class="dropdown-item" type="button" id="btnUploadTemplateOpen">Upload</button></li>
           </ul>
         </div>
         <button class="btn od-btn-primary assessment-form-action-btn" type="button" id="btnExportForm">Export</button>
@@ -282,7 +270,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title mb-0">Quick Assistance</h5>
+            <h5 class="modal-title mb-0">Quick Guides</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
@@ -1019,7 +1007,7 @@
     },
     {
       title: 'Upload Feature',
-      description: 'Use Upload menu to download template and upload prepared data mapped by assessment row code.',
+      description: 'Use Template menu to download template and upload prepared data mapped by assessment row code.',
       selector: '#btnUploadMenu',
       tab: 'entry',
       hint: 'Uploading can update values in bulk, so verify data before saving.',
@@ -1815,6 +1803,7 @@
     const hint = document.getElementById('formHint');
     const uploadBtn = document.getElementById('btnUploadMenu');
     const uploadWrap = uploadBtn?.closest('.dropdown');
+    const downloadTemplateBtn = document.getElementById('btnDownloadTemplate');
     const exportBtn = document.getElementById('btnExportForm');
     const summaryPrintBtn = document.getElementById('btnSummaryPrint');
     const summaryEditBtn = document.getElementById('btnSummaryEdit');
@@ -1824,6 +1813,17 @@
     const submitBtn = document.getElementById('btnSubmitForm');
     const canExport = boolFlag(pageState.canExport);
     const canSummaryManage = pageState.isAseanstatsStaff;
+    const uploadCfg = pageState.uploadTemplate || {};
+    const downloadUrl = String(uploadCfg.download_url || '').trim();
+    const downloadName = String(uploadCfg.download_name || 'template.xlsx').trim() || 'template.xlsx';
+
+    if (downloadTemplateBtn) {
+      downloadTemplateBtn.href = downloadUrl || '#';
+      downloadTemplateBtn.setAttribute('download', downloadName);
+      downloadTemplateBtn.classList.toggle('disabled', !downloadUrl);
+      downloadTemplateBtn.setAttribute('aria-disabled', downloadUrl ? 'false' : 'true');
+      downloadTemplateBtn.style.pointerEvents = downloadUrl ? '' : 'none';
+    }
 
     if (!pageState.period || !pageState.assessmentCountry) {
       meta.textContent = 'Assessment information unavailable.';
@@ -1850,7 +1850,7 @@
     const modeText = periodOpen ? 'Open' : 'Completed';
     const periodTitle = String(pageState.period.title || pageState.period.description || '-').trim() || '-';
     const countryName = String(pageState.assessmentCountry.country_name || pageState.assessmentCountry.country_code || '-').trim() || '-';
-    meta.textContent = `${periodTitle} | Reference Year: ${pageState.period.year ?? '-'} | Status: ${modeText} | ${countryName}`;
+    meta.textContent = `${periodTitle} | Status: ${modeText} | ${countryName}`;
 
     if (periodOpen) {
       hint.className = 'period-hint mb-3';

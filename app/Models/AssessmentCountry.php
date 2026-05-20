@@ -10,6 +10,15 @@ class AssessmentCountry extends BaseLegacyModel
         'is_submitted' => 'boolean',
     ];
 
+    protected $fillable = [
+        'period_id',
+        'country_code',
+        'is_submitted',
+        'template_file',
+        'template_ori',
+        'modified_by',
+    ];
+
     public function period(){ return $this->belongsTo(AssessmentPeriod::class, 'period_id'); }
     public function country(){ return $this->belongsTo(Country::class, 'country_code', 'code'); }
     public function rows(){ return $this->hasMany(AssessmentCountryRow::class, 'assessment_country_id'); }

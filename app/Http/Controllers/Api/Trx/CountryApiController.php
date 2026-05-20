@@ -9,6 +9,8 @@ use App\Models\AssessmentPeriod;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CountryApiController extends Controller
 {
@@ -151,6 +153,8 @@ class CountryApiController extends Controller
                 'country_code' => $ac->country_code,
                 'country_name' => optional($ac->country)->name,
                 'is_submitted' => (bool) $ac->is_submitted,
+                'template_file' => $ac->template_file,
+                'template_ori' => $ac->template_ori,
                 'progress' => (float) ($progress['progress'] ?? 0),
                 'coverage_sub_score_ratio' => (float) ($summary['coverage_sub_score_ratio'] ?? 0),
                 'opennes_sub_score_ratio' => (float) ($summary['opennes_sub_score_ratio'] ?? 0),
@@ -437,6 +441,70 @@ class CountryApiController extends Controller
             'matched' => $matched,
             'unmatched' => $unmatched,
             'saved_summary_sections' => count($payload['summary']['sections']),
+        ]);
+    }
+
+    public function attachTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'periodid' => 'required|integer',
+            'countryid' => 'required|integer',
+            'template' => 'required|file|max:20480',
+        ]);
+
+        $ac = AssessmentCountry::where('id', (int) $payload['countryid'])
+            ->where('period_id', (int) $payload['periodid'])
+            ->firstOrFail();
+        $period = AssessmentPeriod::findOrFail((int) $payload['periodid']);
+        if (!$period->active) {
+            return $this->fail('Assessment period is completed', 409);
+        }
+
+        $file = $request->file('template');
+        if (!$file) {
+            return $this->fail('Template file is required', 422);
+        }
+
+        $originalName = (string) $file->getClientOriginalName();
+        $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $safeBase = Str::limit(Str::slug($baseName, '_'), 40, '');
+        $safeBase = $safeBase !== '' ? $safeBase : 'template';
+        $safeExt = preg_replace('/[^a-z0-9]/', '', $ext) ?: 'bin';
+        $uniqueName = sprintf(
+            'p%d_c%d_%s_%s.%s',
+            (int) $ac->period_id,
+            (int) $ac->id,
+            $safeBase,
+            now('UTC')->format('YmdHis'),
+            $safeExt
+        );
+        $dir = 'trx/templates';
+
+        DB::transaction(function () use ($ac, $file, $dir, $uniqueName, $originalName) {
+            $previousFile = trim((string) ($ac->template_file ?? ''));
+            if ($previousFile !== '') {
+                Storage::disk('local')->delete($dir.'/'.$previousFile);
+            }
+
+            Storage::disk('local')->putFileAs($dir, $file, $uniqueName);
+
+            $ac->update([
+                'template_file' => $uniqueName,
+                'template_ori' => Str::limit($originalName, 100, ''),
+                'modified_by' => (int) auth()->id(),
+            ]);
+        });
+
+        AuditLogger::log($request, 'attach template file (admin)', $ac->id);
+
+        return $this->ok([
+            'assessment_country_id' => (int) $ac->id,
+            'period_id' => (int) $ac->period_id,
+            'country_code' => (string) $ac->country_code,
+            'template_file' => $uniqueName,
+            'template_ori' => Str::limit($originalName, 100, ''),
+            'storage_path' => 'storage/app/'.$dir.'/'.$uniqueName,
         ]);
     }
 }

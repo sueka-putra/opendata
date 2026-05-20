@@ -54,7 +54,7 @@
         </div>
 
         <nav class="od-menu">
-            <p class="od-menu-section">Assessment</p>
+            <!--p class="od-menu-section">Assessment</p-->
             <a class="od-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
                 <i class="fa-solid fa-chart-pie"></i><span>Dashboard</span>
             </a>

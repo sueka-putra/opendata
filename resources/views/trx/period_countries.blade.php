@@ -116,6 +116,7 @@
   const periodId = @json((int) request()->route('periodId'));
   let uploadTemplateModal = null;
   let uploadTemplateFile = null;
+  let attachTemplateFileInput = null;
   let selectedUploadCountry = null;
   let uploadDebugInfo = null;
 
@@ -185,6 +186,7 @@
           ${(isOpen && (row.is_submitted === true || row.is_submitted === 1 || row.is_submitted === '1'))
             ? `<button class="btn btn-sm btn-outline-warning me-1 btn-unlock-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Unlock</button>`
             : ''}
+          ${isOpen ? `<button class="btn btn-sm btn-outline-info me-1 btn-attach-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Attach</button>` : ''}
           ${isOpen ? `<button class="btn btn-sm btn-outline-secondary me-1 btn-upload-country" type="button" data-country-id="${escAttr(row.assessment_country_id || '')}" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Upload</button>` : ''}
           <button class="btn btn-sm btn-outline-primary me-1 btn-print-country" type="button" data-country-code="${escAttr(row.country_code || '')}" data-country-name="${escAttr(row.country_name || row.country_code || '')}">Print</button>
           <a class="btn btn-sm btn-outline-dark" href="/trx/form?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(row.country_code)}">${isOpen ? 'Open' : 'View'}</a>
@@ -879,6 +881,61 @@
     return { mappingMode, uploaded, matched, unmatched };
   }
 
+  async function attachTemplateForCountry(countryId, countryCode, countryName) {
+    if (!window.__periodIsOpen) {
+      odAlert('Period is completed. Attach is disabled.', 'Attach');
+      return;
+    }
+
+    const id = Number(countryId || 0);
+    if (!id) {
+      odAlert('Invalid participant target.', 'Attach');
+      return;
+    }
+
+    if (!attachTemplateFileInput) {
+      attachTemplateFileInput = document.createElement('input');
+      attachTemplateFileInput.type = 'file';
+      attachTemplateFileInput.accept = '.xlsx,.xls';
+      attachTemplateFileInput.style.display = 'none';
+      document.body.appendChild(attachTemplateFileInput);
+    }
+
+    attachTemplateFileInput.value = '';
+    attachTemplateFileInput.onchange = async (event) => {
+      const file = event.target?.files?.[0] || null;
+      if (!file) return;
+
+      const ok = await odConfirm(
+        `Attach file "${file.name}" for ${countryName || countryCode || 'this participant'}?`,
+        'Confirm Attach Template'
+      );
+      if (!ok) return;
+
+      const body = new FormData();
+      body.append('periodid', String(periodId));
+      body.append('countryid', String(id));
+      body.append('template', file);
+
+      try {
+        const response = await odFetch('/api/trx/countries/attach-template', {
+          method: 'POST',
+          body,
+        });
+        const data = response?.data || {};
+        await loadCountries();
+        odAlert(
+          `Template attached for ${countryName || countryCode || '-'}. Original: ${data.template_ori || file.name}. Stored as: ${data.template_file || '-'}.`,
+          'Upload Confirmation'
+        );
+      } catch (err) {
+        odAlert(err?.message || 'Failed to attach template file.', 'Upload Confirmation');
+      }
+    };
+
+    attachTemplateFileInput.click();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     uploadTemplateModal = new bootstrap.Modal(document.getElementById('uploadTemplateDialog'));
     const uploadDropzone = document.getElementById('uploadDropzone');
@@ -933,6 +990,15 @@
           uploadBtn.dataset.countryId || '',
           uploadBtn.dataset.countryCode || '',
           uploadBtn.dataset.countryName || ''
+        );
+        return;
+      }
+      const attachBtn = event.target.closest('.btn-attach-country');
+      if (attachBtn) {
+        attachTemplateForCountry(
+          attachBtn.dataset.countryId || '',
+          attachBtn.dataset.countryCode || '',
+          attachBtn.dataset.countryName || ''
         );
         return;
       }

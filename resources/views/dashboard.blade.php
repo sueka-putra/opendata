@@ -30,10 +30,9 @@
         <table class="table period-table align-middle mb-0">
           <thead>
             <tr>
-              <th style="width:90px;">Year</th>
-              <th>Description</th>
-              <th style="width:130px;">Period</th>
-              <th style="width:130px;">Status</th>
+              <th>Assessments</th>
+              <th style="width:130px;">Period Status</th>
+              <th style="width:130px;">Progress</th>
               <th style="width:120px;">Progress</th>
               <th style="width:170px;">Coverage Sub Score</th>
               <th style="width:170px;">Opennes Sub Score</th>
@@ -42,7 +41,7 @@
             </tr>
           </thead>
           <tbody id="assessmentRows">
-            <tr><td colspan="9" class="text-muted">Loading data...</td></tr>
+            <tr><td colspan="8" class="text-muted">Loading data...</td></tr>
           </tbody>
         </table>
       </div>
@@ -87,10 +86,14 @@
   }
 
   .dashboard-active-card {
-    border: 1px solid #c9ddff;
+    border: 1px solid #4f8ff0;
+    box-shadow:
+      0 10px 26px rgba(38, 94, 182, 0.22),
+      0 0 0 1px rgba(96, 151, 241, 0.25) inset;
     background:
-      radial-gradient(120% 120% at 100% -10%, rgba(56, 124, 255, 0.16), transparent 58%),
-      linear-gradient(180deg, #fafdff 0%, #f2f8ff 100%);
+      radial-gradient(120% 140% at 100% -20%, rgba(126, 184, 255, 0.35), transparent 56%),
+      radial-gradient(120% 120% at -8% 118%, rgba(40, 118, 255, 0.3), transparent 54%),
+      linear-gradient(145deg, #edf5ff 0%, #dcecff 52%, #d2e6ff 100%);
   }
 
   .dashboard-active-card-body {
@@ -185,6 +188,12 @@ let historyScoreChart = null;
 let sectionScoreChart = null;
 let latestRows = [];
 
+function displayPeriodYear(rawYear) {
+  const n = Number(rawYear);
+  if (!Number.isFinite(n)) return String(rawYear ?? '-');
+  return String(n + 1);
+}
+
 function submissionBadge(submitted, periodOpen = true) {
   if (submitted === true || submitted === 1 || submitted === '1') {
     return '<span class="od-badge od-badge-submission-submitted">Submitted</span>';
@@ -206,7 +215,7 @@ function isOpenPeriod(row) {
 
 function renderRows(rows) {
   if (!rows.length) {
-    rowContainer.innerHTML = '<tr><td colspan="9" class="text-muted">No assessment data found.</td></tr>';
+    rowContainer.innerHTML = '<tr><td colspan="8" class="text-muted">No assessment data found.</td></tr>';
     return;
   }
 
@@ -233,7 +242,6 @@ function renderRows(rows) {
 
     return `
       <tr>
-        <td>${r.year}</td>
         <td>${r.description || '-'}</td>
         <td>${periodBadge}</td>
         <td>${statusBadge}</td>
@@ -261,7 +269,7 @@ function renderActiveAssessmentCard(rows) {
   const referenceYear = String(activeRow.year || '-');
   const formUrl = `/trx/form?periodid=${encodeURIComponent(activeRow.period_id)}&country_code=${encodeURIComponent(activeRow.country_code)}`;
 
-  activeAssessmentText.textContent = `There is currently an active Assessment ${periodTitle} for reference year ${referenceYear}.`;
+  activeAssessmentText.textContent = `You have an active Assessment ${periodTitle}`;
   activeAssessmentBtn.setAttribute('href', formUrl);
   activeAssessmentCard.classList.remove('d-none');
 }
@@ -296,7 +304,7 @@ function renderHistoryScoreChart(rows) {
   const ctx = canvas.getContext('2d');
   const colors = chartPalette();
   const ordered = [...rows].sort((a, b) => Number(a.year || 0) - Number(b.year || 0));
-  const labels = ordered.map((r) => `${r.year}`);
+  const labels = ordered.map((r) => displayPeriodYear(r.year));
   const coverage = ordered.map((r) => Number(r.coverage_sub_score_ratio ?? 0) * 100);
   const openness = ordered.map((r) => Number(r.opennes_sub_score_ratio ?? 0) * 100);
   const overall = ordered.map((r) => Number(r.overall_score_ratio ?? 0) * 100);
@@ -381,7 +389,7 @@ function renderSectionScoreChart(rows) {
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext('2d');
   const sortedRows = [...rows].sort((a, b) => Number(a.year || 0) - Number(b.year || 0));
-  const labels = sortedRows.map((r) => String(r.year ?? '-'));
+  const labels = sortedRows.map((r) => displayPeriodYear(r.year));
   const sectionSet = new Set();
   sortedRows.forEach((r) => {
     (Array.isArray(r.section_scores) ? r.section_scores : []).forEach((s) => {
@@ -433,7 +441,7 @@ function renderSectionScoreChart(rows) {
         legend: { position: 'bottom', labels: { boxWidth: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
         tooltip: {
           callbacks: {
-            title: (items) => `Year ${items[0]?.label || '-'}`,
+            title: (items) => `Period ${items[0]?.label || '-'}`,
             label: (ctx2) => `${ctx2.dataset.label}: ${toPercentLabel(ctx2.parsed.y)}`,
           },
         },
@@ -487,7 +495,7 @@ async function loadAssessments() {
     latestRows = [];
     if (activeAssessmentCard) activeAssessmentCard.classList.add('d-none');
     destroyCharts();
-    rowContainer.innerHTML = `<tr><td colspan="9" class="text-danger">${error.message}</td></tr>`;
+    rowContainer.innerHTML = `<tr><td colspan="8" class="text-danger">${error.message}</td></tr>`;
   }
 }
 

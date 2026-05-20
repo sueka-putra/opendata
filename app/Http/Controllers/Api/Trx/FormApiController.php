@@ -13,6 +13,7 @@ use App\Services\AuditLogger;
 use App\Services\ScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class FormApiController extends Controller
 {
@@ -265,6 +266,11 @@ class FormApiController extends Controller
                 'detail_row' => (int) ($configMeta->detail_row ?? 5),
                 'detail_rows' => (int) ($configMeta->detail_rows ?? 0),
                 'prefixes' => $templatePrefixes,
+                'download_url' => route('api.trx.form.template.download', [
+                    'periodid' => (int) $period->id,
+                    'country_code' => (string) $ac->country_code,
+                ]),
+                'download_name' => (string) ($ac->template_ori ?: 'template.xlsx'),
             ],
             'assessment_country' => [
                 'id' => $ac->id,
@@ -289,6 +295,39 @@ class FormApiController extends Controller
                 'can_export' => $allowExport,
             ],
         ]);
+    }
+
+    public function downloadTemplate(Request $request)
+    {
+        $periodId = (int) $request->query('periodid');
+        $countryCode = (string) $request->query('country_code', $request->user()->country_code);
+
+        $ac = AssessmentCountry::where('period_id', $periodId)
+            ->where('country_code', $countryCode)
+            ->firstOrFail();
+
+        if (!$request->user()->isAdmin() && $request->user()->country_code !== $countryCode) {
+            return $this->fail('Assessment not found', 404);
+        }
+
+        $fileName = trim((string) ($ac->template_file ?? ''));
+        if ($fileName === '') {
+            return $this->fail('Template file is not available for this assessment.', 404);
+        }
+
+        $storagePath = 'trx/templates/'.$fileName;
+        if (!Storage::disk('local')->exists($storagePath)) {
+            return $this->fail('Template file is missing on server.', 404);
+        }
+
+        $downloadName = trim((string) ($ac->template_ori ?? ''));
+        if ($downloadName === '') {
+            $downloadName = $fileName;
+        }
+
+        AuditLogger::log($request, 'download attached template', $ac->id);
+
+        return Storage::disk('local')->download($storagePath, $downloadName);
     }
 
     public function logs(Request $request)
