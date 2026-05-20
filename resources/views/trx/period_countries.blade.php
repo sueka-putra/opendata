@@ -22,11 +22,6 @@
           </div>
           <div class="modal-body">
             <p class="small text-muted mb-2" id="uploadTemplateCaption">Select participant and upload Excel template.</p>
-            <p class="small mb-2"><span class="text-muted">Mapping mode:</span> <span id="uploadMappingMode" class="fw-semibold text-secondary">-</span></p>
-            <div id="uploadDebugWrap" class="small text-muted mb-2" style="display:none;">
-              <div class="fw-semibold mb-1">Debug Parser</div>
-              <pre id="uploadDebugText" class="mb-0 p-2 border rounded bg-light" style="max-height:180px; overflow:auto; white-space:pre-wrap;"></pre>
-            </div>
             <div id="uploadDropzone" class="assessment-upload-dropzone">
               <input type="file" id="uploadTemplateInput" class="d-none" accept=".xlsx,.xls">
               <div class="assessment-upload-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
@@ -47,15 +42,15 @@
         <table class="table period-table align-middle mb-0">
           <thead>
             <tr>
-              <th style="width: 80px;">No</th>
-              <th>Participant</th>
-              <th style="width: 180px;">Status</th>
+              <th style="width: 64px;">No</th>
+              <th style="width: 20%;">Participant</th>
+              <th style="width: 144px;">Status</th>
               <th style="width: 120px;">Progress</th>
               <th style="width: 170px;">Coverage Sub Score</th>
               <th style="width: 170px;">Opennes Sub Score</th>
               <th style="width: 140px;">Overall Score</th>
-              <th style="width: 240px;">Last Modified</th>
-              <th style="width: 220px; text-align: right;">Action</th>
+              <th style="width: 192px;">Last Modified</th>
+              <th style="width: 320px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="tbCountries">
@@ -70,6 +65,16 @@
 
 @push('styles')
 <style>
+  .period-table tbody tr:nth-child(odd) > td {
+    background-color: #ffffff;
+  }
+  .period-table tbody tr:nth-child(even) > td {
+    background-color: #f3f8ff;
+  }
+  .period-table tbody tr:hover > td {
+    background-color: #e8f1ff;
+  }
+
   .assessment-upload-dropzone {
     border: 1.5px dashed #9cb5d6;
     border-radius: 12px;
@@ -112,7 +117,6 @@
   let uploadTemplateModal = null;
   let uploadTemplateFile = null;
   let selectedUploadCountry = null;
-  let uploadMappingMode = 'unknown';
   let uploadDebugInfo = null;
 
   function fmtDateTime(value) {
@@ -420,6 +424,49 @@
     return Math.round(num * 1000000) / 1000000;
   }
 
+  function readSheetCellText(sheet, rowZeroBased, colZeroBased) {
+    const addr = XLSX.utils.encode_cell({ r: rowZeroBased, c: colZeroBased });
+    const cell = sheet?.[addr];
+    if (!cell) return '';
+    const raw = cell.w ?? cell.v ?? '';
+    return String(raw ?? '').trim();
+  }
+
+  // Explicit mapping between payload variables and template columns.
+  // Excel index is zero-based (A=0), excel_col is human-readable column label.
+  const INPUT_TEMPLATE_MAPPING = {
+    code: { excel_col: 'A', idx: 0, source: 'Input!A (Code)' },
+    series: { excel_col: 'F', idx: 5, source: 'Input!F' },
+    count_all: { excel_col: 'G', idx: 6, source: 'Input!G' },
+    count_5: { excel_col: 'H', idx: 7, source: 'Input!H' },
+    count_10: { excel_col: 'I', idx: 8, source: 'Input!I' },
+    c1: { excel_col: 'J', idx: 9, source: 'Input!J' },
+    c2: { excel_col: 'K', idx: 10, source: 'Input!K' },
+    c3: { excel_col: 'L', idx: 11, source: 'Input!L' },
+    coverage_sub_score: { excel_col: 'M', idx: 12, source: 'Input!M' },
+    machine_readability: { excel_col: 'N', idx: 13, source: 'Input!N' },
+    proprietary: { excel_col: 'O', idx: 14, source: 'Input!O' },
+    download_options: { excel_col: 'P', idx: 15, source: 'Input!P' },
+    metadata: { excel_col: 'Q', idx: 16, source: 'Input!Q' },
+    term_of_use: { excel_col: 'R', idx: 17, source: 'Input!R' },
+    opennes_sub_score: { excel_col: 'S', idx: 18, source: 'Input!S' },
+    urls: { excel_col: 'T', idx: 19, source: 'Input!T' },
+    remarks: { excel_col: 'U', idx: 20, source: 'Input!U' },
+  };
+
+  const SUMMARY_TEMPLATE_MAPPING = {
+    sections_anchor: { excel_col: 'B', source: 'Summary Report!B (header "Sections")' },
+    coverage_max_score: { offset_from_sections: 1, excel_col: 'C' },
+    coverage_actual_score: { offset_from_sections: 2, excel_col: 'D' },
+    coverage_sub_score_ratio: { offset_from_sections: 3, excel_col: 'E' },
+    opennes_max_score: { offset_from_sections: 4, excel_col: 'F' },
+    opennes_actual_score: { offset_from_sections: 5, excel_col: 'G' },
+    opennes_sub_score_ratio: { offset_from_sections: 6, excel_col: 'H' },
+    overall_score_ratio: { offset_from_sections: 7, excel_col: 'I' },
+    section_rows: '6..9',
+    weighted_row: '10',
+  };
+
   async function parseInputRowsFromWorkbook(workbook, codePrefixes = []) {
     const sheetName = workbook.SheetNames.includes('Input') ? 'Input' : workbook.SheetNames[0];
     if (!sheetName) {
@@ -428,59 +475,57 @@
       throw new Error('Template has no worksheet.');
     }
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    if (!Array.isArray(rows) || rows.length < 1) {
-      const dbg = { input_sheet: sheetName, reason: 'input-sheet-empty', input_total_rows: Array.isArray(rows) ? rows.length : 0 };
+    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+    const totalRows = (range.e.r - range.s.r) + 1;
+    if (!sheet || totalRows < 1) {
+      const dbg = { input_sheet: sheetName, reason: 'input-sheet-empty', input_total_rows: totalRows };
       setUploadDebug(dbg);
       throw new Error('Input sheet is empty.');
     }
 
-    const headerIndexByKey = new Map();
-    const collectHeader = (row) => row.forEach((col, idx) => {
-      const key = normalizeTemplateHeader(col);
-      if (key && !headerIndexByKey.has(key)) headerIndexByKey.set(key, idx);
-    });
-    collectHeader(rows[2] || []);
-    collectHeader(rows[3] || []);
-
-    const findIdx = (aliases, fallback) => {
-      for (const k of aliases) if (headerIndexByKey.has(k)) return Number(headerIndexByKey.get(k));
-      return fallback;
-    };
-
-    const idxSeries = findIdx(['series', 'coverageseries'], 5);
-    const idxMachine = findIdx(['machinereadilibility', 'machinereadibility', 'machinereadability'], 13);
-    const idxProp = findIdx(['proprietary', 'nonproprietary'], 14);
-    const idxDownload = findIdx(['downloadoptions'], 15);
-    const idxMetadata = findIdx(['metadata', 'metadataavailability'], 16);
-    const idxTerm = findIdx(['termofuse', 'termofuser'], 17);
-    const idxUrl = findIdx(['url', 'urls', 'relevanturl', 'relevanturls'], 19);
-    const idxRemark = findIdx(['remark', 'remarks', 'note', 'notes'], 20);
+    // Fixed mapping based on official template layout (A=0):
+    // F..U => 5..20
+    const idxSeries = INPUT_TEMPLATE_MAPPING.series.idx;
+    const idxCountAll = INPUT_TEMPLATE_MAPPING.count_all.idx;
+    const idxCount5 = INPUT_TEMPLATE_MAPPING.count_5.idx;
+    const idxCount10 = INPUT_TEMPLATE_MAPPING.count_10.idx;
+    const idxC1 = INPUT_TEMPLATE_MAPPING.c1.idx;
+    const idxC2 = INPUT_TEMPLATE_MAPPING.c2.idx;
+    const idxC3 = INPUT_TEMPLATE_MAPPING.c3.idx;
+    const idxCoverageSub = INPUT_TEMPLATE_MAPPING.coverage_sub_score.idx;
+    const idxMachine = INPUT_TEMPLATE_MAPPING.machine_readability.idx;
+    const idxProp = INPUT_TEMPLATE_MAPPING.proprietary.idx;
+    const idxDownload = INPUT_TEMPLATE_MAPPING.download_options.idx;
+    const idxMetadata = INPUT_TEMPLATE_MAPPING.metadata.idx;
+    const idxTerm = INPUT_TEMPLATE_MAPPING.term_of_use.idx;
+    const idxOpennesSub = INPUT_TEMPLATE_MAPPING.opennes_sub_score.idx;
+    const idxUrl = INPUT_TEMPLATE_MAPPING.urls.idx;
+    const idxRemark = INPUT_TEMPLATE_MAPPING.remarks.idx;
 
     const codePattern = /^[A-Z]{2}\.\d{3}\.\d{3}\.\d{3}$/;
     const scanned = [];
     let seenDataRow = false;
     let emptyStreak = 0;
-    const hardLimit = Math.min(rows.length, 1200);
+    const hardLimit = Math.min(totalRows, 1200);
     let rowsChecked = 0;
     let rowsWithSignal = 0;
     let stoppedBy = '';
     for (let i = 4; i < hardLimit; i += 1) {
       rowsChecked += 1;
-      const x = rows[i] || [];
-      const b = cellText(x[1]);
-      const c = cellText(x[2]);
-      const d = cellText(x[3]);
-      const e = cellText(x[4]);
-      const f = cellText(x[5]);
-      const n = cellText(x[13]);
-      const o = cellText(x[14]);
-      const p = cellText(x[15]);
-      const q = cellText(x[16]);
-      const r = cellText(x[17]);
-      const t = cellText(x[19]);
-      const u = cellText(x[20]);
-      const hasSignal = !!(b || c || d || e || f || n || o || p || q || r || t || u || cellText(x[0]));
+      const a = readSheetCellText(sheet, i, 0);
+      const b = readSheetCellText(sheet, i, 1);
+      const c = readSheetCellText(sheet, i, 2);
+      const d = readSheetCellText(sheet, i, 3);
+      const e = readSheetCellText(sheet, i, 4);
+      const f = readSheetCellText(sheet, i, 5);
+      const n = readSheetCellText(sheet, i, 13);
+      const o = readSheetCellText(sheet, i, 14);
+      const p = readSheetCellText(sheet, i, 15);
+      const q = readSheetCellText(sheet, i, 16);
+      const r = readSheetCellText(sheet, i, 17);
+      const t = readSheetCellText(sheet, i, 19);
+      const u = readSheetCellText(sheet, i, 20);
+      const hasSignal = !!(a || b || c || d || e || f || n || o || p || q || r || t || u);
 
       if (b.toLowerCase() === 'total') {
         stoppedBy = `total at row ${i + 1}`;
@@ -500,18 +545,26 @@
       seenDataRow = true;
       emptyStreak = 0;
 
-      const series = cellText(x[idxSeries]);
+      const series = readSheetCellText(sheet, i, idxSeries);
       scanned.push({
-        code_raw: normalizeCode(x[0]),
+        code_raw: normalizeCode(a),
         source_row: i + 1,
         series,
-        machine_readability: parseTemplateMetric(x[idxMachine], [-1, 0, 1]),
-        proprietary: parseTemplateMetric(x[idxProp], [-1, 0, 1]),
-        download_options: parseTemplateMetric(x[idxDownload], [-1, 0, 0.5, 1]),
-        metadata: parseTemplateMetric(x[idxMetadata], [-1, 0, 0.5, 1]),
-        term_of_use: parseTemplateMetric(x[idxTerm], [-1, 0, 0.5, 1]),
-        urls: cellText(x[idxUrl]),
-        remarks: cellText(x[idxRemark]),
+        count_all: parseSummaryNumber(readSheetCellText(sheet, i, idxCountAll)),
+        count_5: parseSummaryNumber(readSheetCellText(sheet, i, idxCount5)),
+        count_10: parseSummaryNumber(readSheetCellText(sheet, i, idxCount10)),
+        c1: parseSummaryNumber(readSheetCellText(sheet, i, idxC1)),
+        c2: parseSummaryNumber(readSheetCellText(sheet, i, idxC2)),
+        c3: parseSummaryNumber(readSheetCellText(sheet, i, idxC3)),
+        coverage_sub_score: parseSummaryNumber(readSheetCellText(sheet, i, idxCoverageSub)),
+        machine_readability: parseTemplateMetric(readSheetCellText(sheet, i, idxMachine), [-1, 0, 1]),
+        proprietary: parseTemplateMetric(readSheetCellText(sheet, i, idxProp), [-1, 0, 1]),
+        download_options: parseTemplateMetric(readSheetCellText(sheet, i, idxDownload), [-1, 0, 0.5, 1]),
+        metadata: parseTemplateMetric(readSheetCellText(sheet, i, idxMetadata), [-1, 0, 0.5, 1]),
+        term_of_use: parseTemplateMetric(readSheetCellText(sheet, i, idxTerm), [-1, 0, 0.5, 1]),
+        opennes_sub_score: parseSummaryNumber(readSheetCellText(sheet, i, idxOpennesSub)),
+        urls: readSheetCellText(sheet, i, idxUrl),
+        remarks: readSheetCellText(sheet, i, idxRemark),
       });
     }
 
@@ -520,7 +573,8 @@
       .map((r) => ({ ...r, code: r.code_raw }));
     const debug = {
       input_sheet: sheetName,
-      input_total_rows: rows.length,
+      input_mapping: INPUT_TEMPLATE_MAPPING,
+      input_total_rows: totalRows,
       scan_start_excel_row: 5,
       scan_hard_limit_excel_row: hardLimit,
       scan_rows_checked: rowsChecked,
@@ -578,27 +632,80 @@
     };
   }
 
-  function setUploadMappingMode(modeText, tone = 'secondary') {
-    uploadMappingMode = String(modeText || 'unknown');
-    const el = document.getElementById('uploadMappingMode');
-    if (!el) return;
-    el.classList.remove('text-secondary', 'text-success', 'text-warning');
-    el.classList.add(`text-${tone}`);
-    el.textContent = uploadMappingMode;
-  }
-
   function setUploadDebug(info) {
     uploadDebugInfo = info || null;
-    const wrap = document.getElementById('uploadDebugWrap');
-    const el = document.getElementById('uploadDebugText');
-    if (!wrap || !el) return;
-    if (!uploadDebugInfo) {
-      wrap.style.display = 'none';
-      el.textContent = '';
-      return;
-    }
-    wrap.style.display = '';
-    el.textContent = JSON.stringify(uploadDebugInfo, null, 2);
+  }
+
+  function showUploadConfirmationDialog(message, debugInfo = null) {
+    odEnsureDialogHost();
+    const modalEl = document.getElementById('odAlertModal');
+    const titleEl = document.getElementById('odAlertTitle');
+    const bodyEl = document.getElementById('odAlertBody');
+    titleEl.textContent = 'Upload Confirmation';
+    bodyEl.innerHTML = '';
+    bodyEl.style.whiteSpace = 'normal';
+
+    const msg = document.createElement('div');
+    msg.textContent = String(message || '');
+    msg.style.whiteSpace = 'pre-line';
+    msg.style.marginBottom = '0.5rem';
+    bodyEl.appendChild(msg);
+
+    const links = document.createElement('div');
+    links.className = 'small';
+    links.style.marginBottom = '0.5rem';
+
+    const mappingLink = document.createElement('a');
+    mappingLink.href = '#';
+    mappingLink.textContent = 'Mapping';
+    mappingLink.style.marginRight = '0.75rem';
+    links.appendChild(mappingLink);
+
+    const debugLink = document.createElement('a');
+    debugLink.href = '#';
+    debugLink.textContent = 'Debug';
+    links.appendChild(debugLink);
+    bodyEl.appendChild(links);
+
+    const mappingArea = document.createElement('textarea');
+    mappingArea.readOnly = true;
+    mappingArea.value = JSON.stringify({
+      input_sheet: INPUT_TEMPLATE_MAPPING,
+      summary_sheet: SUMMARY_TEMPLATE_MAPPING,
+    }, null, 2);
+    mappingArea.style.width = '100%';
+    mappingArea.style.height = '180px';
+    mappingArea.style.resize = 'none';
+    mappingArea.style.overflow = 'auto';
+    mappingArea.style.display = 'none';
+    mappingArea.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    mappingArea.style.fontSize = '12px';
+    bodyEl.appendChild(mappingArea);
+
+    const debugArea = document.createElement('textarea');
+    debugArea.readOnly = true;
+    debugArea.value = JSON.stringify(debugInfo || {}, null, 2);
+    debugArea.style.width = '100%';
+    debugArea.style.height = '180px';
+    debugArea.style.resize = 'none';
+    debugArea.style.overflow = 'auto';
+    debugArea.style.display = 'none';
+    debugArea.style.marginTop = '0.5rem';
+    debugArea.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    debugArea.style.fontSize = '12px';
+    bodyEl.appendChild(debugArea);
+
+    mappingLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      mappingArea.style.display = mappingArea.style.display === 'none' ? '' : 'none';
+    });
+    debugLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      debugArea.style.display = debugArea.style.display === 'none' ? '' : 'none';
+    });
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
   }
 
   async function fetchCodePrefixesByCountry(assessmentCountryId) {
@@ -623,37 +730,29 @@
     const summarySheetName = detectSummarySheetName(workbook.SheetNames);
     if (!summarySheetName) throw new Error('Summary Report sheet not found.');
     const sheet = workbook.Sheets[summarySheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    if (!Array.isArray(rows) || rows.length < 1) throw new Error('Summary Report sheet is empty.');
+    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+    const totalRows = (range.e.r - range.s.r) + 1;
+    if (!sheet || totalRows < 1) throw new Error('Summary Report sheet is empty.');
 
-    const headerRow = rows[5 - 1] || [];
-    let sectionsColIdx = headerRow.findIndex((v) => normalizeTemplateHeader(v) === 'sections');
-    if (sectionsColIdx < 0) {
-      const fallbackRow = rows[4 - 1] || [];
-      sectionsColIdx = fallbackRow.findIndex((v) => normalizeTemplateHeader(v) === 'sections');
-    }
-    if (sectionsColIdx < 0) {
-      sectionsColIdx = 1; // default B
-    }
-
-    const idxCoverageMax = sectionsColIdx + 1; // C
-    const idxCoverageActual = sectionsColIdx + 2; // D
-    const idxCoverageSub = sectionsColIdx + 3; // E
-    const idxOpennesMax = sectionsColIdx + 4; // F
-    const idxOpennesActual = sectionsColIdx + 5; // G
-    const idxOpennesSub = sectionsColIdx + 6; // H
-    const idxOverall = sectionsColIdx + 7; // I
+    const sectionsColIdx = 1; // fixed to column B
+    const idxCoverageMax = 2; // C
+    const idxCoverageActual = 3; // D
+    const idxCoverageSub = 4; // E
+    const idxOpennesMax = 5; // F
+    const idxOpennesActual = 6; // G
+    const idxOpennesSub = 7; // H
+    const idxOverall = 8; // I
 
     const sections = [];
     for (let excelRow = 6; excelRow <= 9; excelRow += 1) {
-      const row = rows[excelRow - 1] || [];
-      const coverageMax = parseSummaryNumber(row[idxCoverageMax]);
-      const coverageActual = parseSummaryNumber(row[idxCoverageActual]);
-      const coverageSub = parseSummaryRatio(row[idxCoverageSub]);
-      const opennesMax = parseSummaryNumber(row[idxOpennesMax]);
-      const opennesActual = parseSummaryNumber(row[idxOpennesActual]);
-      const opennesSub = parseSummaryRatio(row[idxOpennesSub]);
-      const overall = parseSummaryRatio(row[idxOverall]);
+      const rowIdx = excelRow - 1;
+      const coverageMax = parseSummaryNumber(readSheetCellText(sheet, rowIdx, idxCoverageMax));
+      const coverageActual = parseSummaryNumber(readSheetCellText(sheet, rowIdx, idxCoverageActual));
+      const coverageSub = parseSummaryRatio(readSheetCellText(sheet, rowIdx, idxCoverageSub));
+      const opennesMax = parseSummaryNumber(readSheetCellText(sheet, rowIdx, idxOpennesMax));
+      const opennesActual = parseSummaryNumber(readSheetCellText(sheet, rowIdx, idxOpennesActual));
+      const opennesSub = parseSummaryRatio(readSheetCellText(sheet, rowIdx, idxOpennesSub));
+      const overall = parseSummaryRatio(readSheetCellText(sheet, rowIdx, idxOverall));
       sections.push({
         coverage_max_score: coverageMax ?? 0,
         coverage_actual_score: coverageActual ?? 0,
@@ -665,11 +764,11 @@
       });
     }
 
-    const weightedRow = rows[10 - 1] || [];
+    const weightedRowIdx = 10 - 1;
     const weighted = {
-      coverage_sub_score_ratio: parseSummaryRatio(weightedRow[idxCoverageSub]) ?? 0,
-      opennes_sub_score_ratio: parseSummaryRatio(weightedRow[idxOpennesSub]) ?? 0,
-      overall_score_ratio: parseSummaryRatio(weightedRow[idxOverall]) ?? 0,
+      coverage_sub_score_ratio: parseSummaryRatio(readSheetCellText(sheet, weightedRowIdx, idxCoverageSub)) ?? 0,
+      opennes_sub_score_ratio: parseSummaryRatio(readSheetCellText(sheet, weightedRowIdx, idxOpennesSub)) ?? 0,
+      overall_score_ratio: parseSummaryRatio(readSheetCellText(sheet, weightedRowIdx, idxOverall)) ?? 0,
     };
 
     if (!sections.length) {
@@ -678,7 +777,24 @@
     if (!weighted) {
       throw new Error('Failed to parse Weighted Score from Summary Report sheet.');
     }
-    return { sections, weighted, sheetName: summarySheetName };
+    return {
+      sections,
+      weighted,
+      sheetName: summarySheetName,
+      mapping: {
+        ...SUMMARY_TEMPLATE_MAPPING,
+        sections_idx: sectionsColIdx,
+        resolved_indexes: {
+          coverage_max_score: idxCoverageMax,
+          coverage_actual_score: idxCoverageActual,
+          coverage_sub_score_ratio: idxCoverageSub,
+          opennes_max_score: idxOpennesMax,
+          opennes_actual_score: idxOpennesActual,
+          opennes_sub_score_ratio: idxOpennesSub,
+          overall_score_ratio: idxOverall,
+        },
+      },
+    };
   }
 
   function setUploadTemplateFile(file) {
@@ -704,7 +820,6 @@
     if (!ok) return;
 
     setUploadTemplateFile(null);
-    setUploadMappingMode('-', 'secondary');
     setUploadDebug(null);
     const input = document.getElementById('uploadTemplateInput');
     if (input) input.value = '';
@@ -735,8 +850,15 @@
       db_prefix_count: Array.isArray(codePrefixes) ? codePrefixes.length : 0,
       parsed_rows_final: parsedRows.length,
     });
-    setUploadMappingMode(mappingMode, mappingMode.includes('fallback') ? 'warning' : 'success');
     const parsedSummary = await parseSummaryFromWorkbook(workbook);
+    setUploadDebug({
+      ...(parsedInput?.debug || {}),
+      summary_sheet: parsedSummary?.sheetName || null,
+      summary_mapping: parsedSummary?.mapping || SUMMARY_TEMPLATE_MAPPING,
+      country_code: selectedUploadCountry.countryCode || '',
+      db_prefix_count: Array.isArray(codePrefixes) ? codePrefixes.length : 0,
+      parsed_rows_final: parsedRows.length,
+    });
 
     const response = await odFetch('/api/trx/countries/upload-template', {
       method: 'POST',
@@ -753,8 +875,8 @@
     const uploaded = Number(result.uploaded || 0);
     const matched = Number(result.matched || 0);
     const unmatched = Math.max(0, uploaded - matched);
-    odToast(`Template uploaded for ${selectedUploadCountry.name}. Mapping: ${mappingMode}. Uploaded: ${uploaded}, matched: ${matched}, unmatched: ${unmatched}.`);
     await loadCountries();
+    return { mappingMode, uploaded, matched, unmatched };
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -784,13 +906,15 @@
     uploadProcessBtn.addEventListener('click', async () => {
       uploadProcessBtn.disabled = true;
       try {
-        await processUploadTemplate();
+        const result = await processUploadTemplate();
         uploadTemplateModal.hide();
+        showUploadConfirmationDialog(
+          `Template uploaded for ${selectedUploadCountry?.name || '-'}. Mapping: ${result.mappingMode}. Uploaded: ${result.uploaded}, matched: ${result.matched}, unmatched: ${result.unmatched}.`,
+          uploadDebugInfo
+        );
       } catch (err) {
-        if (uploadDebugInfo) {
-          console.error('Upload template parser debug:', uploadDebugInfo);
-        }
-        odAlert(err?.message || 'Failed to process upload template.', 'Upload Template');
+        uploadTemplateModal.hide();
+        showUploadConfirmationDialog(err?.message || 'Failed to process upload template.', uploadDebugInfo);
       } finally {
         uploadProcessBtn.disabled = false;
       }

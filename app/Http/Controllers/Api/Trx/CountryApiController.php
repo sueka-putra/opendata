@@ -233,13 +233,21 @@ class CountryApiController extends Controller
             'rows.*.code' => 'required|string|max:100',
             'rows.*.source_row' => 'nullable|integer|min:1',
             'rows.*.series' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::SERIES_MAX_LENGTH,
+            'rows.*.count_all' => 'nullable|numeric',
+            'rows.*.count_5' => 'nullable|numeric',
+            'rows.*.count_10' => 'nullable|numeric',
+            'rows.*.c1' => 'nullable|numeric',
+            'rows.*.c2' => 'nullable|numeric',
+            'rows.*.c3' => 'nullable|numeric',
+            'rows.*.coverage_sub_score' => 'nullable|numeric',
             'rows.*.machine_readability' => 'nullable|numeric|in:-1,0,1',
             'rows.*.proprietary' => 'nullable|numeric|in:-1,0,1',
             'rows.*.download_options' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.metadata' => 'nullable|numeric|in:-1,0,0.5,1',
             'rows.*.term_of_use' => 'nullable|numeric|in:-1,0,0.5,1',
-            'rows.*.urls' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::URLS_MAX_LENGTH,
-            'rows.*.remarks' => 'nullable|string|max:'.\App\Models\AssessmentCountryRow::REMARKS_MAX_LENGTH,
+            'rows.*.opennes_sub_score' => 'nullable|numeric',
+            'rows.*.urls' => 'nullable|string',
+            'rows.*.remarks' => 'nullable|string',
             'summary' => 'required|array',
             'summary.sections' => 'required|array|min:1',
             'summary.sections.*.coverage_max_score' => 'required|numeric',
@@ -324,18 +332,36 @@ class CountryApiController extends Controller
                 }
                 $series = trim((string) ($r['series'] ?? ''));
                 $isSeriesNa = strtoupper($series) === 'NA';
+                $countAll = isset($r['count_all']) ? (float) $r['count_all'] : null;
+                $count5 = isset($r['count_5']) ? (float) $r['count_5'] : null;
+                $count10 = isset($r['count_10']) ? (float) $r['count_10'] : null;
+                $c1 = isset($r['c1']) ? (float) $r['c1'] : null;
+                $c2 = isset($r['c2']) ? (float) $r['c2'] : null;
+                $c3 = isset($r['c3']) ? (float) $r['c3'] : null;
+                $coverageSub = isset($r['coverage_sub_score']) ? (float) $r['coverage_sub_score'] : null;
                 $machineReadability = $this->sanitizeTemplateScore($r['machine_readability'] ?? null, [-1.0, 0.0, 1.0]);
                 $proprietary = $this->sanitizeTemplateScore($r['proprietary'] ?? null, [-1.0, 0.0, 1.0]);
                 $downloadOptions = $this->sanitizeTemplateScore($r['download_options'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
                 $metadata = $this->sanitizeTemplateScore($r['metadata'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
                 $termOfUse = $this->sanitizeTemplateScore($r['term_of_use'] ?? null, [-1.0, 0.0, 0.5, 1.0]);
+                $opennesSub = isset($r['opennes_sub_score']) ? (float) $r['opennes_sub_score'] : null;
+                $urls = isset($r['urls']) ? mb_substr((string) $r['urls'], 0, 3000) : null;
+                $remarks = isset($r['remarks']) ? mb_substr((string) $r['remarks'], 0, 3000) : null;
 
                 if ($isSeriesNa) {
+                    $countAll = null;
+                    $count5 = null;
+                    $count10 = null;
+                    $c1 = null;
+                    $c2 = null;
+                    $c3 = null;
+                    $coverageSub = 0;
                     $machineReadability = -1;
                     $proprietary = -1;
                     $downloadOptions = -1;
                     $metadata = -1;
                     $termOfUse = -1;
+                    $opennesSub = 0;
                 }
 
                 DB::table('od_trx_assessment_country_rows')->updateOrInsert(
@@ -345,13 +371,21 @@ class CountryApiController extends Controller
                     ],
                     [
                         'series' => $series,
+                        'count_all' => $countAll,
+                        'count_5' => $count5,
+                        'count_10' => $count10,
+                        'c1' => $c1,
+                        'c2' => $c2,
+                        'c3' => $c3,
+                        'coverage_sub_score' => $coverageSub,
                         'machine_readability' => $machineReadability,
                         'proprietary' => $proprietary,
                         'download_options' => $downloadOptions,
                         'metadata' => $metadata,
                         'term_of_use' => $termOfUse,
-                        'urls' => $r['urls'] ?? null,
-                        'remarks' => $r['remarks'] ?? null,
+                        'opennes_sub_score' => $opennesSub,
+                        'urls' => $urls,
+                        'remarks' => $remarks,
                     ]
                 );
                 $matched++;
@@ -396,7 +430,7 @@ class CountryApiController extends Controller
             $ac->update(['modified_by' => (int) auth()->id()]);
         });
 
-        AuditLogger::log($request, 'upload template from countries', $ac->id);
+        AuditLogger::log($request, 'Populate from template (admin)', $ac->id);
 
         return $this->ok([
             'uploaded' => count($payload['rows']),
