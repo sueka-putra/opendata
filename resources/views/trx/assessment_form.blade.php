@@ -1183,6 +1183,21 @@
     });
   }
 
+  function fmtDate(value) {
+    if (!value) return '-';
+    const raw = String(value).trim();
+    if (!raw) return '-';
+    const hasTimezone = /(?:Z|[+\-]\d{2}:\d{2})$/i.test(raw);
+    const utcIso = hasTimezone ? raw : raw.replace(' ', 'T') + 'Z';
+    const dt = new Date(utcIso);
+    if (Number.isNaN(dt.getTime())) return String(value);
+    return dt.toLocaleDateString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  }
+
   function helpIconText(text, label = 'Field help') {
     const clean = String(text || '').trim();
     if (!clean) return '';
@@ -1354,23 +1369,8 @@
   }
 
   function maybeAutoOpenHelpWizard() {
-    if (!helpWizardModal) return;
-    if (!pageState.periodId) return;
-
-    let shouldOpen = false;
-    try {
-      shouldOpen = localStorage.getItem(HELP_WIZARD_STORAGE_KEY) !== '1';
-      if (shouldOpen) {
-        localStorage.setItem(HELP_WIZARD_STORAGE_KEY, '1');
-      }
-    } catch (error) {
-      shouldOpen = false;
-    }
-
-    if (!shouldOpen) return;
-    window.setTimeout(() => {
-      openHelpWizard(0);
-    }, 600);
+    // Disabled by request: Quick Guide opens only when user clicks Help.
+    return;
   }
 
   function boolFlag(v) {
@@ -1847,10 +1847,11 @@
     const isSubmitted = boolFlag(pageState.assessmentCountry.is_submitted);
     pageState.editable = periodOpen && !isSubmitted;
 
-    const modeText = periodOpen ? 'Open' : 'Completed';
-    const periodTitle = String(pageState.period.title || pageState.period.description || '-').trim() || '-';
-    const countryName = String(pageState.assessmentCountry.country_name || pageState.assessmentCountry.country_code || '-').trim() || '-';
-    meta.textContent = `${periodTitle} | Status: ${modeText} | ${countryName}`;
+    const isPastDueDate = boolFlag(pageState.period.is_past_due_date);
+    const modeText = periodOpen ? 'Open' : (isPastDueDate ? 'Locked (Due Date Passed)' : 'Completed');
+    const periodDescription = String(pageState.period.description || '-').trim() || '-';
+    const dueDateText = fmtDate(pageState.period.due_date);
+    meta.textContent = `${periodDescription} | Status: ${modeText} | Due date: ${dueDateText}`;
 
     if (periodOpen) {
       hint.className = 'period-hint mb-3';
@@ -1873,7 +1874,9 @@
       submitBtn.textContent = isSubmitted ? 'Submitted' : 'Submit';
     } else {
       hint.className = 'period-hint mb-3';
-      hint.textContent = 'Period is completed. Assessment is read-only.';
+      hint.textContent = isPastDueDate
+        ? 'Due date has passed. Assessment is now locked and read-only.'
+        : 'Period is completed. Assessment is read-only.';
       hint.style.display = 'block';
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;

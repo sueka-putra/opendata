@@ -11,6 +11,7 @@ use App\Models\AssessmentSummary;
 use App\Models\Country;
 use App\Services\AuditLogger;
 use App\Services\ScoreService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +19,24 @@ use Illuminate\Support\Facades\Storage;
 class FormApiController extends Controller
 {
     use JsonEnvelope;
+
+    private function isPastDueDate(AssessmentPeriod $period): bool
+    {
+        if (!$period->due_date) {
+            return false;
+        }
+
+        $todayUtc = Carbon::now('UTC')->toDateString();
+        $dueDateUtc = Carbon::parse($period->due_date, 'UTC')->toDateString();
+
+        // Lock starts on the day after due_date (inclusive until end of due_date day).
+        return $todayUtc > $dueDateUtc;
+    }
+
+    private function isPeriodLocked(AssessmentPeriod $period): bool
+    {
+        return !$period->active || $this->isPastDueDate($period);
+    }
 
     private function sanitizeTemplateScore($value, array $allowed)
     {
@@ -252,14 +271,19 @@ class FormApiController extends Controller
         $weightedOpenness = $weightedSummary ? (((float) $weightedSummary->opennes_sub_score) / 100) : 0;
         $weightedOverall = $weightedSummary ? (((float) $weightedSummary->overall_score) / 100) : ((0.5 * $weightedCoverage) + (0.5 * $weightedOpenness));
 
+        $isPastDueDate = $this->isPastDueDate($period);
+        $isLocked = !$period->active || $isPastDueDate;
+
         return $this->ok([
             'period' => [
                 'id' => $period->id,
                 'title' => $period->title,
                 'year' => $period->year,
-                'active' => (bool) $period->active,
+                'active' => !$isLocked,
                 'description' => $period->description,
                 'config_id' => (int) $period->config_id,
+                'due_date' => optional($period->due_date)->toDateTimeString(),
+                'is_past_due_date' => $isPastDueDate,
             ],
             'upload_template' => [
                 'header_row' => (int) ($configMeta->header_row ?? 3),
@@ -403,8 +427,13 @@ class FormApiController extends Controller
         }
 
         $period = AssessmentPeriod::findOrFail($payload['periodid']);
-        if (!$period->active) {
-            return $this->fail('Assessment period is completed', 409);
+        if ($this->isPeriodLocked($period)) {
+            return $this->fail(
+                $this->isPastDueDate($period)
+                    ? 'Assessment is locked because due date has passed'
+                    : 'Assessment period is completed',
+                409
+            );
         }
 
         $schema = DB::getSchemaBuilder();
@@ -509,8 +538,13 @@ class FormApiController extends Controller
         }
 
         $period = AssessmentPeriod::findOrFail($payload['periodid']);
-        if (!$period->active) {
-            return $this->fail('Assessment period is completed', 409);
+        if ($this->isPeriodLocked($period)) {
+            return $this->fail(
+                $this->isPastDueDate($period)
+                    ? 'Assessment is locked because due date has passed'
+                    : 'Assessment period is completed',
+                409
+            );
         }
         $isAseanstatsStaff = ((string) $request->user()->country_code) === '00';
 
@@ -636,8 +670,13 @@ class FormApiController extends Controller
         }
 
         $period = AssessmentPeriod::findOrFail($payload['periodid']);
-        if (!$period->active) {
-            return $this->fail('Assessment period is completed', 409);
+        if ($this->isPeriodLocked($period)) {
+            return $this->fail(
+                $this->isPastDueDate($period)
+                    ? 'Assessment is locked because due date has passed'
+                    : 'Assessment period is completed',
+                409
+            );
         }
 
         if (!$ac->is_submitted) {
@@ -689,6 +728,15 @@ class FormApiController extends Controller
         $ac = AssessmentCountry::where('id', $payload['countryid'])
             ->where('period_id', $payload['periodid'])
             ->firstOrFail();
+        $period = AssessmentPeriod::findOrFail($payload['periodid']);
+        if ($this->isPeriodLocked($period)) {
+            return $this->fail(
+                $this->isPastDueDate($period)
+                    ? 'Assessment is locked because due date has passed'
+                    : 'Assessment period is completed',
+                409
+            );
+        }
 
         $ratioToPercent = static function ($value): float {
             return round(((float) $value) * 100, 2);

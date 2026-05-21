@@ -9,6 +9,7 @@ class AssessmentPeriod extends BaseLegacyModel
     protected $casts = [
         'active' => 'boolean',
         'config_id' => 'integer',
+        'due_date' => 'datetime',
     ];
 
     public function rows()
