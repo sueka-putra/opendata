@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Trx\ActiveAssessmentController;
 use App\Http\Controllers\Trx\AssessmentHelpController;
+use App\Http\Controllers\Trx\DelegationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,6 +22,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/help', [AssessmentHelpController::class, 'index'])->name('help');
 
     Route::view('/dashboard', 'dashboard')->name('dashboard');
+    Route::get('/change-password', [ProfileController::class, 'changePassword'])->name('password.edit');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
@@ -39,6 +41,10 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('trx')->group(function () {
         Route::get('/', fn () => redirect()->route('trx.active'))->name('trx.index');
         Route::get('/active', [ActiveAssessmentController::class, 'index'])->name('trx.active');
+        Route::get('/delegation', [DelegationController::class, 'index'])->name('trx.delegation.index');
+        Route::post('/delegation', [DelegationController::class, 'store'])->name('trx.delegation.store');
+        Route::put('/delegation/{id}', [DelegationController::class, 'update'])->name('trx.delegation.update');
+        Route::delete('/delegation/{id}', [DelegationController::class, 'destroy'])->name('trx.delegation.destroy');
 
         Route::middleware('admin.only')->group(function () {
             Route::view('/periods', 'trx.periods')->name('trx.periods');

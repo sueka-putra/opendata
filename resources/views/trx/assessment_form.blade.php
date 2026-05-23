@@ -30,7 +30,7 @@
         <div class="dropdown">
           <button class="btn od-btn-primary dropdown-toggle assessment-form-action-btn" type="button" id="btnUploadMenu" data-bs-toggle="dropdown" aria-expanded="false">Template</button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btnUploadMenu">
-            <li><a class="dropdown-item" id="btnDownloadTemplate" href="#" download>Download</a></li>
+            <li id="menuDownloadTemplate"><a class="dropdown-item" id="btnDownloadTemplate" href="#" download>Download</a></li>
             <li><button class="dropdown-item" type="button" id="btnUploadTemplateOpen">Upload</button></li>
           </ul>
         </div>
@@ -947,84 +947,84 @@
   const helpWizardStepsBase = [
     {
       title: 'Header & Period Context',
-      description: 'Check this area first to confirm period, reference year, form mode (editable/read-only), and selected country.',
+      description: 'Check this area first to confirm the assessment period, description, status, due date, and selected country.',
       selector: '#formMeta',
       tab: 'entry',
-      hint: 'Always verify this context before entering data.',
+      hint: 'Always verify this context before entering or updating data.',
     },
     {
       title: 'Entry Filters',
-      description: 'Use Section and Category filters to narrow the row list. Changing Section resets Category to keep filters consistent.',
+      description: 'Use the Section and Category filters to narrow the assessment rows shown on the page. When you change Section, Category is reset to keep the filter combination consistent.',
       selector: '.assessment-entry-filters',
       tab: 'entry',
-      hint: 'Start from Section, then drill down with Category.',
+      hint: 'Start with Section, then refine the list using Category.',
     },
     {
       title: 'Unfinished-only View',
-      description: 'Turn on this checkbox to focus only on rows that are not fully complete yet.',
+      description: 'Turn on this checkbox to display only rows that are still incomplete within the current filter selection.',
       selector: '#entryUnfinishedOnly',
       tab: 'entry',
-      hint: 'Useful for follow-up before save or submit.',
+      hint: 'Useful when reviewing pending rows before saving or submitting.',
     },
     {
       title: 'Row Navigator',
-      description: 'Use Navigator to jump quickly to top, bottom, or a specific row from the Go To dialog.',
+      description: 'Use Navigator to move quickly through the currently displayed rows. You can jump to the Top, Bottom, or open Go To to select a specific row from a simplified list showing Section, Category, Indicator, and Disaggregation.',
       selector: '#btnNavMain',
       tab: 'entry',
-      hint: 'Best for large forms with many rows.',
+      hint: 'Helpful for navigating large filtered result sets more efficiently.',
     },
     {
       title: 'Help Button',
-      description: 'Use Help button anytime to reopen this wizard and walk through the page guidance again.',
+      description: 'Use the Help button anytime to reopen this Quick Guide and review the page guidance again.',
       selector: '#btnHelpWizard',
       tab: 'entry',
-      hint: 'This helps onboard new users and refresh workflow reminders.',
+      hint: 'Useful for first-time users and whenever you need a quick refresher.',
     },
     {
       title: 'Assessment Entry Table',
-      description: 'Fill Series, Coverage, Openness, and Evidence fields per row. Tooltips explain scoring logic for each field.',
+      description: 'Each entry row represents one combination of Section, Category, Indicator, and Disaggregation. Complete the required fields for Coverage, Openness, Relevant URL, and Remark for each row. Tooltips provide additional guidance for specific fields.',
       detailLink: true,
       detailTopic: 'entry',
       selector: '.assessment-table',
       tab: 'entry',
-      hint: 'Rows are scored automatically and summary updates in real time.',
+      hint: 'Scores are calculated automatically, and updates are reflected in the form as you work.',
     },
     {
       title: 'Summary Tab',
-      description: 'Open Summary tab to review progress and weighted scores by section before final submission.',
+      description: 'Open the Summary tab to review scoring by Section for both Coverage and Openness. Each section includes Max Score, Actual Score, and Sub Score, along with the overall weighted score across all sections.',
       detailLink: true,
       detailTopic: 'summary',
       selector: '#summaryRows',
       tab: 'summary',
-      hint: 'Use this as validation checkpoint after data entry.',
+      hint: 'Use this tab as a checkpoint to review progress before submission.',
     },
     {
       title: 'Assessment Log',
-      description: 'Open Log tab to review timeline history of saves, submissions, and relevant activity notes.',
+      description: 'Open the Log tab to review the activity history for this assessment, including key actions such as saves, submissions, and other relevant updates.',
       selector: '#logRows',
       tab: 'log',
-      hint: 'Use this for audit trail and progress tracking.',
+      hint: 'Useful for tracking progress and checking the assessment history.',
     },
     {
-      title: 'Upload Feature',
-      description: 'Use Template menu to download template and upload prepared data mapped by assessment row code.',
+      title: 'Template',
+      description: 'Use the Template menu to Download or Upload an assessment Excel template. Download is available only if your country submitted the assessment in the previous period. Upload allows you to populate the screen using a prepared Excel file instead of entering data manually.',
       selector: '#btnUploadMenu',
       tab: 'entry',
-      hint: 'Uploading can update values in bulk, so verify data before saving.',
+      hint: 'Uploading replaces all current values on the screen, so remember to click Save to store the uploaded data in the database.',
     },
     {
       title: 'Save',
-      description: 'Use Save to store current changes as draft. You can continue editing after that and save again anytime for next updates.',
+      description: 'Use Save to store your current changes as a draft in the database. You can continue editing afterward and save again anytime.',
       selector: '#btnSaveForm',
       tab: 'entry',
-      hint: 'Save often while working so progress is not lost.',
+      hint: 'Save regularly while working to avoid losing progress.',
     },
     {
       title: 'Submit',
-      description: 'Submit stores the final assessment and marks the end of data entry. After submit, the assessment is locked and no further manual edits or template uploads are allowed.',
+      description: 'Use Submit when you have completed the self-assessment and are ready to finalize it. After submission, the assessment form is locked, and no further edits or template uploads can be made.',
       selector: '#btnSubmitForm',
       tab: 'entry',
-      hint: 'If revisions are needed after submit, contact ASEANstats to unlock it while the period is still Open.',
+      hint: 'Make sure you click Save before Submit. If changes are needed afterward while the period is still Open, please contact ASEANstats to request an unlock.',
     },
   ];
   let helpWizardSteps = [];
@@ -1323,7 +1323,7 @@
       const text = esc(step.description || '');
       const topic = encodeURIComponent(String(step.detailTopic || 'entry'));
       const detailUrl = esc(`${helpEntryDetailUrl || '#'}?topic=${topic}`);
-      descEl.innerHTML = `${text} <a class="assessment-help-detail-link" href="${detailUrl}" target="odHelpWindow">See more detail</a>.`;
+      descEl.innerHTML = `${text} <a class="assessment-help-detail-link" href="${detailUrl}" target="odHelpWindow">See more details</a>.`;
     } else {
       descEl.textContent = step.description || '';
     }
@@ -1371,6 +1371,18 @@
   function maybeAutoOpenHelpWizard() {
     // Disabled by request: Quick Guide opens only when user clicks Help.
     return;
+  }
+
+  function maybeOpenHelpWizardFromQuery() {
+    const openQuickGuide = String(params.get('open_quick_guide') || '').trim();
+    if (openQuickGuide !== '1') return;
+    window.setTimeout(() => {
+      openHelpWizard(0);
+      params.delete('open_quick_guide');
+      const nextQuery = params.toString();
+      const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`;
+      window.history.replaceState({}, '', nextUrl);
+    }, 250);
   }
 
   function boolFlag(v) {
@@ -1804,6 +1816,7 @@
     const uploadBtn = document.getElementById('btnUploadMenu');
     const uploadWrap = uploadBtn?.closest('.dropdown');
     const downloadTemplateBtn = document.getElementById('btnDownloadTemplate');
+    const downloadTemplateMenu = document.getElementById('menuDownloadTemplate');
     const exportBtn = document.getElementById('btnExportForm');
     const summaryPrintBtn = document.getElementById('btnSummaryPrint');
     const summaryEditBtn = document.getElementById('btnSummaryEdit');
@@ -1816,13 +1829,18 @@
     const uploadCfg = pageState.uploadTemplate || {};
     const downloadUrl = String(uploadCfg.download_url || '').trim();
     const downloadName = String(uploadCfg.download_name || 'template.xlsx').trim() || 'template.xlsx';
+    const hasDownloadTemplate = boolFlag(uploadCfg.has_download_template);
+
+    if (downloadTemplateMenu) {
+      downloadTemplateMenu.style.display = hasDownloadTemplate ? '' : 'none';
+    }
 
     if (downloadTemplateBtn) {
       downloadTemplateBtn.href = downloadUrl || '#';
       downloadTemplateBtn.setAttribute('download', downloadName);
-      downloadTemplateBtn.classList.toggle('disabled', !downloadUrl);
-      downloadTemplateBtn.setAttribute('aria-disabled', downloadUrl ? 'false' : 'true');
-      downloadTemplateBtn.style.pointerEvents = downloadUrl ? '' : 'none';
+      downloadTemplateBtn.classList.toggle('disabled', !hasDownloadTemplate || !downloadUrl);
+      downloadTemplateBtn.setAttribute('aria-disabled', hasDownloadTemplate && downloadUrl ? 'false' : 'true');
+      downloadTemplateBtn.style.pointerEvents = hasDownloadTemplate && downloadUrl ? '' : 'none';
     }
 
     if (!pageState.period || !pageState.assessmentCountry) {
@@ -1845,15 +1863,15 @@
 
     const periodOpen = boolFlag(pageState.period.active);
     const isSubmitted = boolFlag(pageState.assessmentCountry.is_submitted);
-    pageState.editable = periodOpen && !isSubmitted;
-
     const isPastDueDate = boolFlag(pageState.period.is_past_due_date);
-    const modeText = periodOpen ? 'Open' : (isPastDueDate ? 'Locked (Due Date Passed)' : 'Completed');
+    pageState.editable = periodOpen && !isSubmitted && !isPastDueDate;
+
+    const modeText = periodOpen ? 'Open' : 'Complete';
     const periodDescription = String(pageState.period.description || '-').trim() || '-';
     const dueDateText = fmtDate(pageState.period.due_date);
     meta.textContent = `${periodDescription} | Status: ${modeText} | Due date: ${dueDateText}`;
 
-    if (periodOpen) {
+    if (periodOpen && !isPastDueDate) {
       hint.className = 'period-hint mb-3';
       hint.textContent = isSubmitted
         ? 'Assessment already submitted. Form is now read-only. Contact ASEANstats if revisions are required.'
@@ -1876,7 +1894,7 @@
       hint.className = 'period-hint mb-3';
       hint.textContent = isPastDueDate
         ? 'Due date has passed. Assessment is now locked and read-only.'
-        : 'Period is completed. Assessment is read-only.';
+        : 'Period is complete. Assessment is read-only.';
       hint.style.display = 'block';
       if (uploadWrap) uploadWrap.style.display = 'none';
       uploadBtn.disabled = true;
@@ -3318,6 +3336,7 @@
 
     updateNavigatorVisibility();
     loadForm();
+    maybeOpenHelpWizardFromQuery();
 
     window.addEventListener('resize', () => {
       const tbody = document.getElementById('detailRows');

@@ -37,7 +37,7 @@
               <th style="width:170px;">Coverage Sub Score</th>
               <th style="width:170px;">Opennes Sub Score</th>
               <th style="width:140px;">Overall Score</th>
-              <th style="width:110px; text-align: right;">Action</th>
+              <th id="dashboardActionColHeader" style="width:110px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody id="assessmentRows">
@@ -48,7 +48,7 @@
     </div>
 
     <div class="dashboard-charts-grid mt-3">
-      <div class="period-table-card dashboard-chart-card">
+      <div id="dashboardHistoryChartCard" class="period-table-card dashboard-chart-card">
         <div class="dashboard-chart-head">
           <div>
             <h2 class="dashboard-chart-title">Score Trend Overview</h2>
@@ -59,7 +59,7 @@
           <canvas id="historyScoreChart"></canvas>
         </div>
       </div>
-      <div class="period-table-card dashboard-chart-card">
+      <div id="dashboardSectionChartCard" class="period-table-card dashboard-chart-card">
         <div class="dashboard-chart-head">
           <div class="dashboard-chart-head-row">
           <div>
@@ -71,6 +71,42 @@
         <div class="dashboard-chart-body">
           <canvas id="sectionScoreChart"></canvas>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+<button class="dashboard-fab-help" type="button" id="btnDashboardHelpWizard" aria-label="Open dashboard help" title="Help">
+  <span class="dashboard-fab-help-icon" aria-hidden="true">
+    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+  </span>
+  <span class="dashboard-fab-help-label">Help</span>
+</button>
+<div class="modal fade period-dialog assessment-help-wizard-modal" id="dashboardHelpWizardDialog" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title mb-0">Quick Guides</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="assessment-help-layout">
+          <div class="assessment-help-outline-wrap">
+            <div class="assessment-help-outline-title">Outline</div>
+            <div id="dashboardHelpWizardOutline" class="assessment-help-outline-list"></div>
+          </div>
+          <div class="assessment-help-detail-wrap">
+            <div class="small text-muted mb-2" id="dashboardHelpWizardStepMeta">Step 1 of 1</div>
+            <h6 class="mb-2" id="dashboardHelpWizardStepTitle">Welcome</h6>
+            <p class="mb-2" id="dashboardHelpWizardStepDescription">This wizard guides you through the main actions in this page.</p>
+            <div class="assessment-help-hint-box small mb-0" id="dashboardHelpWizardTargetHint">
+              Focus area will be highlighted on the page.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn od-btn-outline" type="button" id="btnDashboardHelpWizardPrev">Previous</button>
+        <button class="btn od-btn-primary" type="button" id="btnDashboardHelpWizardNext">Next</button>
       </div>
     </div>
   </div>
@@ -164,6 +200,166 @@
     height: 260px !important;
   }
 
+  .dashboard-fab-help {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1049;
+    min-width: 116px;
+    border: 1px solid #2b76e5;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #2b76e5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 9px 14px;
+    box-shadow: 0 8px 20px rgba(16, 73, 160, 0.18);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .dashboard-fab-help:hover,
+  .dashboard-fab-help:focus-visible {
+    background: #2b76e5;
+    color: #ffffff;
+    border-color: #2b76e5;
+    transform: translateY(-1px);
+  }
+
+  .dashboard-fab-help-icon {
+    width: auto;
+    height: auto;
+    font-size: 1rem;
+  }
+
+  .dashboard-fab-help-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .assessment-help-wizard-modal {
+    pointer-events: none;
+    z-index: 3000 !important;
+  }
+
+  .assessment-help-wizard-modal .modal-dialog {
+    margin: 0;
+    position: fixed;
+    top: 0.9rem;
+    right: 1rem;
+    width: min(740px, calc(100vw - 2rem));
+    max-width: min(740px, calc(100vw - 2rem));
+    transform: none !important;
+    z-index: 3001;
+  }
+
+  .assessment-help-wizard-modal .modal-dialog:not(.is-positioned) {
+    visibility: hidden;
+  }
+
+  .assessment-help-wizard-modal .modal-content {
+    border: 2px solid #2563eb;
+    border-radius: 8px;
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.2);
+    background: #f8fbff;
+  }
+
+  .assessment-help-wizard-modal .modal-header {
+    border-bottom: 1px solid #bfdbfe;
+    background: #dbeafe;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+
+  .assessment-help-wizard-modal .modal-title {
+    color: #1d4ed8;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .assessment-help-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+  }
+
+  .assessment-help-outline-wrap {
+    flex: 0 0 250px;
+    max-width: 250px;
+  }
+
+  .assessment-help-outline-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #335f9f;
+    margin-bottom: 0.48rem;
+  }
+
+  .assessment-help-outline-list {
+    border: 1px solid #d5e5ff;
+    border-radius: 8px;
+    background: #ffffff;
+    max-height: 280px;
+    overflow: auto;
+    padding: 0.28rem;
+  }
+
+  .assessment-help-outline-item {
+    border-radius: 6px;
+    padding: 0.34rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: #21406b;
+  }
+
+  .assessment-help-outline-item:hover {
+    background: #eff6ff;
+  }
+
+  .assessment-help-outline-item.is-active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-weight: 700;
+  }
+
+  .assessment-help-detail-wrap {
+    flex: 1 1 320px;
+    max-width: calc(100% - 260px);
+  }
+
+  .assessment-help-hint-box {
+    border: 1px solid #c7dcff;
+    border-radius: 8px;
+    background: #eef5ff;
+    color: #2e4f7e;
+    padding: 0.42rem 0.52rem;
+    line-height: 1.35;
+  }
+
+  .assessment-help-wizard-modal .modal-footer {
+    border-top: 1px solid #bfdbfe;
+    background: #eaf2ff;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding-top: 0.62rem;
+    padding-bottom: 0.62rem;
+  }
+
+  .assessment-wizard-highlight {
+    z-index: 1061;
+    outline: 3px solid rgba(37, 99, 235, 0.95);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25);
+    border-radius: 10px;
+  }
+
   @media (max-width: 1199.98px) {
     .dashboard-charts-grid {
       grid-template-columns: 1fr;
@@ -171,6 +367,28 @@
 
     .dashboard-active-card-body .btn {
       width: 100%;
+    }
+
+    .dashboard-fab-help {
+      right: 0.75rem;
+      bottom: 0.75rem;
+      min-width: 110px;
+      padding: 8px 12px;
+    }
+  }
+
+  @media (max-width: 991.98px) {
+    .assessment-help-wizard-modal .modal-dialog {
+      right: 0.6rem;
+      top: 0.6rem;
+      width: calc(100vw - 1.2rem);
+      max-width: calc(100vw - 1.2rem);
+    }
+
+    .assessment-help-outline-wrap,
+    .assessment-help-detail-wrap {
+      flex: 1 1 auto;
+      max-width: 100%;
     }
   }
 </style>
@@ -187,6 +405,190 @@ const activeAssessmentBtn = document.getElementById('activeAssessmentBtn');
 let historyScoreChart = null;
 let sectionScoreChart = null;
 let latestRows = [];
+const btnDashboardHelpWizard = document.getElementById('btnDashboardHelpWizard');
+const dashboardHelpWizardDialogEl = document.getElementById('dashboardHelpWizardDialog');
+const dashboardHelpWizardModal = dashboardHelpWizardDialogEl && window.bootstrap?.Modal
+  ? new bootstrap.Modal(dashboardHelpWizardDialogEl, { backdrop: false, keyboard: true })
+  : null;
+const dashboardHelpWizardState = { stepIndex: 0 };
+const dashboardHelpWizardSteps = [
+  {
+    title: 'Active Assessment Card',
+    description: 'If an assessment period is currently open, this card will appear at the top of the page. Click Take Assessment to go directly to the active assessment form.',
+    selector: '#activeAssessmentCard',
+    hint: 'This is the quickest way to continue working on the current assessment.',
+  },
+  {
+    title: 'Assessment Histories Table',
+    description: 'This table shows the list of assessment periods together with the period status, submission status, completion progress, and score summary.',
+    selector: '#assessmentRows',
+    hint: 'Use this table to track your assessment records across different periods.',
+  },
+  {
+    title: 'Action Column (Assess/View)',
+    description: 'Use Assess to continue or open the active assessment period. Use View to review assessments from completed periods.',
+    selector: '#dashboardActionColHeader',
+    hint: 'Choose Assess for ongoing work and View for reference only.',
+  },
+  {
+    title: 'Score Trend Overview Chart',
+    description: 'This chart shows the trend of Coverage, Openness, and Overall Score across assessment periods.',
+    selector: '#dashboardHistoryChartCard',
+    hint: 'Use this chart to quickly see whether your scores are improving over time.',
+  },
+  {
+    title: 'Section Score Comparison Chart',
+    description: 'This chart compares section-level scores across assessment periods, helping you identify areas that have improved or may need further attention.',
+    selector: '#dashboardSectionChartCard',
+    hint: 'Useful for spotting strong sections and sections that may need follow-up.',
+  },
+  {
+    title: 'Help Button',
+    description: 'Click the Help button anytime to reopen this dashboard guide and review the key page features again.',
+    selector: '#btnDashboardHelpWizard',
+    hint: 'Helpful for first-time users and whenever you need a quick reminder.',
+  },
+];
+
+function esc(input) {
+  return String(input ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function clearDashboardHelpWizardHighlight() {
+  document.querySelectorAll('.assessment-wizard-highlight').forEach((el) => {
+    el.classList.remove('assessment-wizard-highlight');
+  });
+}
+
+function resolveDashboardHelpWizardTarget(step) {
+  if (!step?.selector) return null;
+  return document.querySelector(step.selector);
+}
+
+function scrollDashboardHelpWizardTargetIntoView(target) {
+  if (!target || typeof target.scrollIntoView !== 'function') return;
+  const style = window.getComputedStyle(target);
+  if (style.position === 'fixed' || style.position === 'sticky') return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+}
+
+function positionDashboardHelpWizardDialog(target = null) {
+  const dialog = dashboardHelpWizardDialogEl?.querySelector('.modal-dialog');
+  if (!dialog) return;
+  dialog.classList.add('is-positioned');
+  if (!target) {
+    dialog.style.left = '';
+    dialog.style.top = '0.9rem';
+    dialog.style.right = '1rem';
+    return;
+  }
+
+  const margin = 12;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const dialogWidth = dialog.offsetWidth || Math.min(740, viewportWidth - (margin * 2));
+  const dialogHeight = dialog.offsetHeight || 380;
+  const rect = target.getBoundingClientRect();
+  const spaceRight = viewportWidth - rect.right;
+  const spaceLeft = rect.left;
+
+  let left = null;
+  let right = null;
+  if (spaceRight >= dialogWidth + margin) {
+    left = rect.right + margin;
+  } else if (spaceLeft >= dialogWidth + margin) {
+    left = rect.left - dialogWidth - margin;
+  } else {
+    right = margin;
+  }
+
+  let top = rect.top;
+  const spaceAbove = rect.top;
+  const spaceBelow = viewportHeight - rect.bottom;
+  if (spaceAbove >= dialogHeight + margin) {
+    top = rect.top - dialogHeight - margin;
+  } else if (spaceBelow >= dialogHeight + margin) {
+    top = rect.bottom + margin;
+  } else if (spaceBelow >= spaceAbove) {
+    top = Math.max(margin, rect.bottom + margin);
+  } else {
+    top = Math.max(margin, rect.top - dialogHeight - margin);
+  }
+  if (top + dialogHeight > viewportHeight - margin) top = viewportHeight - dialogHeight - margin;
+  if (top < margin) top = margin;
+
+  if (left !== null) {
+    const maxLeft = viewportWidth - dialogWidth - margin;
+    dialog.style.left = `${Math.max(margin, Math.min(left, maxLeft))}px`;
+    dialog.style.right = 'auto';
+  } else {
+    dialog.style.left = '';
+    dialog.style.right = `${right ?? margin}px`;
+  }
+  dialog.style.top = `${Math.round(top)}px`;
+}
+
+function renderDashboardHelpWizardOutline(activeIndex = 0) {
+  const outlineEl = document.getElementById('dashboardHelpWizardOutline');
+  if (!outlineEl) return;
+  outlineEl.innerHTML = dashboardHelpWizardSteps.map((step, index) => {
+    const activeClass = index === activeIndex ? ' is-active' : '';
+    return `<div class="assessment-help-outline-item${activeClass}" data-step-index="${index}">${index + 1}. ${esc(step.title || 'Step')}</div>`;
+  }).join('');
+}
+
+function renderDashboardHelpWizardStep() {
+  if (!dashboardHelpWizardModal || !dashboardHelpWizardSteps.length) return;
+  const maxIndex = dashboardHelpWizardSteps.length - 1;
+  const safeIndex = Math.min(Math.max(Number(dashboardHelpWizardState.stepIndex) || 0, 0), maxIndex);
+  dashboardHelpWizardState.stepIndex = safeIndex;
+  const step = dashboardHelpWizardSteps[safeIndex];
+
+  const stepMetaEl = document.getElementById('dashboardHelpWizardStepMeta');
+  const titleEl = document.getElementById('dashboardHelpWizardStepTitle');
+  const descEl = document.getElementById('dashboardHelpWizardStepDescription');
+  const hintEl = document.getElementById('dashboardHelpWizardTargetHint');
+  const prevBtn = document.getElementById('btnDashboardHelpWizardPrev');
+  const nextBtn = document.getElementById('btnDashboardHelpWizardNext');
+
+  if (stepMetaEl) stepMetaEl.textContent = `Step ${safeIndex + 1} of ${dashboardHelpWizardSteps.length}`;
+  if (titleEl) titleEl.textContent = step.title || 'Help';
+  if (descEl) descEl.textContent = step.description || '';
+  if (hintEl) hintEl.textContent = step.hint || '';
+  if (prevBtn) prevBtn.disabled = safeIndex <= 0;
+  if (nextBtn) nextBtn.textContent = safeIndex >= maxIndex ? 'Finish' : 'Next';
+
+  renderDashboardHelpWizardOutline(safeIndex);
+  clearDashboardHelpWizardHighlight();
+  const target = resolveDashboardHelpWizardTarget(step);
+  if (!target) {
+    if (hintEl) hintEl.textContent = 'Target area is not available yet in the current page state.';
+    positionDashboardHelpWizardDialog(null);
+    return;
+  }
+  target.classList.add('assessment-wizard-highlight');
+  scrollDashboardHelpWizardTargetIntoView(target);
+  positionDashboardHelpWizardDialog(target);
+  window.setTimeout(() => positionDashboardHelpWizardDialog(target), 220);
+}
+
+function openDashboardHelpWizard(startIndex = 0) {
+  if (!dashboardHelpWizardModal || !dashboardHelpWizardSteps.length) return;
+  dashboardHelpWizardState.stepIndex = Number(startIndex) || 0;
+  const step = dashboardHelpWizardSteps[dashboardHelpWizardState.stepIndex] || null;
+  const target = resolveDashboardHelpWizardTarget(step);
+  positionDashboardHelpWizardDialog(target);
+  dashboardHelpWizardDialogEl?.querySelector('.modal-dialog')?.classList.add('is-positioned');
+  dashboardHelpWizardModal.show();
+  window.setTimeout(() => {
+    renderDashboardHelpWizardStep();
+  }, 40);
+}
 
 function displayPeriodYear(rawYear) {
   const n = Number(rawYear);
@@ -502,6 +904,48 @@ async function loadAssessments() {
 if (countryFilter) {
   countryFilter.addEventListener('change', loadAssessments);
 }
+
+if (btnDashboardHelpWizard) {
+  btnDashboardHelpWizard.addEventListener('click', () => {
+    openDashboardHelpWizard(0);
+  });
+}
+
+document.getElementById('btnDashboardHelpWizardPrev')?.addEventListener('click', () => {
+  dashboardHelpWizardState.stepIndex -= 1;
+  renderDashboardHelpWizardStep();
+});
+
+document.getElementById('btnDashboardHelpWizardNext')?.addEventListener('click', () => {
+  const lastIndex = dashboardHelpWizardSteps.length - 1;
+  if (dashboardHelpWizardState.stepIndex >= lastIndex) {
+    dashboardHelpWizardModal?.hide();
+    return;
+  }
+  dashboardHelpWizardState.stepIndex += 1;
+  renderDashboardHelpWizardStep();
+});
+
+document.addEventListener('click', (event) => {
+  const outlineItem = event.target.closest('#dashboardHelpWizardOutline .assessment-help-outline-item');
+  if (!outlineItem) return;
+  const idx = Number(outlineItem.dataset.stepIndex);
+  if (!Number.isFinite(idx)) return;
+  dashboardHelpWizardState.stepIndex = idx;
+  renderDashboardHelpWizardStep();
+});
+
+dashboardHelpWizardDialogEl?.addEventListener('hidden.bs.modal', () => {
+  clearDashboardHelpWizardHighlight();
+  dashboardHelpWizardDialogEl.querySelector('.modal-dialog')?.classList.remove('is-positioned');
+});
+
+window.addEventListener('resize', () => {
+  if (!dashboardHelpWizardDialogEl?.classList.contains('show')) return;
+  const currentStep = dashboardHelpWizardSteps[dashboardHelpWizardState.stepIndex] || null;
+  const target = resolveDashboardHelpWizardTarget(currentStep);
+  positionDashboardHelpWizardDialog(target);
+});
 
 loadAssessments();
 </script>

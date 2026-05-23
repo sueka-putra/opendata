@@ -94,6 +94,25 @@
             </div>
         </div>
 
+        @if($isAdmin)
+        <div class="mb-3">
+            <div class="form-check">
+                <input
+                    class="form-check-input @error('isSelected') is-invalid @enderror"
+                    type="checkbox"
+                    value="1"
+                    id="isSelected"
+                    name="isSelected"
+                    @checked((int) old('isSelected', $user->isSelected ?? 0) === 1)
+                >
+                <label class="form-check-label profile-form-label" for="isSelected">Default</label>
+            </div>
+            @error('isSelected')
+                <div class="invalid-feedback d-block">{{ $message }}</div>
+            @enderror
+        </div>
+        @endif
+
         <div class="mb-3">
             <label class="form-label profile-form-label" for="remarks">Remark</label>
             <textarea

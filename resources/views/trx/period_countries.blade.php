@@ -107,6 +107,34 @@
     font-size: 1.25rem;
     margin-bottom: 4px;
   }
+
+  .participant-template-icon {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-right: 8px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    vertical-align: middle;
+  }
+  .participant-template-icon--ready {
+    color: #15803d;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+  .participant-template-icon--ready:hover {
+    color: #14532d;
+    background: #bbf7d0;
+  }
+  .participant-template-icon--empty {
+    color: #94a3b8;
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    cursor: default;
+  }
 </style>
 @endpush
 
@@ -175,7 +203,10 @@
     tbody.innerHTML = sorted.map((row, idx) => `
       <tr>
         <td>${idx + 1}</td>
-        <td class="fw-semibold">${row.country_name || row.country_code || '-'}</td>
+        <td class="fw-semibold">
+          ${participantTemplateIcon(row)}
+          ${row.country_name || row.country_code || '-'}
+        </td>
         <td>${statusBadge(row.is_submitted, isOpen)}</td>
         <td>${fmtPercent(row.progress)}</td>
         <td>${fmtRatio(row.coverage_sub_score_ratio)}</td>
@@ -193,6 +224,21 @@
         </td>
       </tr>
     `).join('');
+  }
+
+  function participantTemplateIcon(row) {
+    const hasTemplate = String(row?.template_file || '').trim() !== '';
+    const countryCode = String(row?.country_code || '').trim();
+    const countryName = String(row?.country_name || row?.country_code || 'participant').trim();
+    const templateOri = String(row?.template_ori || '').trim();
+
+    if (!hasTemplate || !countryCode) {
+      return '<span class="participant-template-icon participant-template-icon--empty" title="No attached template"><i class="fa-solid fa-download" aria-hidden="true"></i></span>';
+    }
+
+    const url = `/api/trx/form/template/download?periodid=${encodeURIComponent(periodId)}&country_code=${encodeURIComponent(countryCode)}`;
+    const downloadName = templateOri || `template_${countryCode}.xlsx`;
+    return `<a class="participant-template-icon participant-template-icon--ready" href="${url}" download="${escAttr(downloadName)}" title="Download attached template for ${escAttr(countryName)}"><i class="fa-solid fa-download" aria-hidden="true"></i></a>`;
   }
 
   function escAttr(value) {

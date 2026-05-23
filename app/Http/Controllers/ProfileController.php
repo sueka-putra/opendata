@@ -31,6 +31,22 @@ class ProfileController extends Controller
     }
 
     /**
+     * Display dedicated change password page for current user.
+     */
+    public function changePassword(Request $request): View
+    {
+        $context = $this->resolveContext($request);
+
+        return view('profile.change-password', [
+            'user' => $context['target'],
+            'actor' => $context['actor'],
+            'isAdmin' => $context['is_admin'],
+            'isManagingOtherUser' => $context['is_managing_other_user'],
+            'targetUserId' => $context['target_user_id'],
+        ]);
+    }
+
+    /**
      * Update profile fields.
      */
     public function update(Request $request): RedirectResponse
@@ -60,6 +76,7 @@ class ProfileController extends Controller
 
         if ($context['is_admin']) {
             $rules['country_code'] = ['required', 'string', 'max:5'];
+            $rules['isSelected'] = ['nullable', 'boolean'];
         }
 
         $validated = $request->validate($rules);
@@ -71,6 +88,7 @@ class ProfileController extends Controller
 
         if ($context['is_admin']) {
             $target->country_code = $validated['country_code'];
+            $target->isSelected = (int) ($request->boolean('isSelected'));
         }
 
         $target->save();
@@ -100,7 +118,12 @@ class ProfileController extends Controller
         $context['target']->password = Hash::make($validated['password']);
         $context['target']->save();
 
-        return Redirect::to($this->profileUrl($context['target_user_id']))
+        if ($context['target_user_id']) {
+            return Redirect::to($this->profileUrl($context['target_user_id']))
+                ->with('status', 'password-updated');
+        }
+
+        return Redirect::route('password.edit')
             ->with('status', 'password-updated');
     }
 
