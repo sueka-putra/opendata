@@ -10,6 +10,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class UserApiController extends Controller
@@ -152,8 +153,12 @@ class UserApiController extends Controller
 
             $temporaryPassword = Str::password(12, true, true, true, false);
             $user->password = Hash::make($temporaryPassword);
-            $user->must_change_password = true;
-            $user->password_generated_at = now();
+            if ($this->bdContactsHasColumn('must_change_password')) {
+                $user->must_change_password = true;
+            }
+            if ($this->bdContactsHasColumn('password_generated_at')) {
+                $user->password_generated_at = now();
+            }
             $user->save();
             $result['updated']++;
 
@@ -174,5 +179,16 @@ class UserApiController extends Controller
 
         $result['failed_count'] = count($result['failed']);
         return $this->ok($result);
+    }
+
+    private function bdContactsHasColumn(string $column): bool
+    {
+        static $cache = [];
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        $cache[$column] = Schema::hasColumn('bd_contacts', $column);
+        return $cache[$column];
     }
 }

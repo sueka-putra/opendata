@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -116,8 +117,12 @@ class ProfileController extends Controller
         }
 
         $context['target']->password = Hash::make($validated['password']);
-        $context['target']->must_change_password = false;
-        $context['target']->password_changed_at = now();
+        if ($this->bdContactsHasColumn('must_change_password')) {
+            $context['target']->must_change_password = false;
+        }
+        if ($this->bdContactsHasColumn('password_changed_at')) {
+            $context['target']->password_changed_at = now();
+        }
         $context['target']->save();
 
         if ($context['target_user_id']) {
@@ -231,5 +236,16 @@ class ProfileController extends Controller
         }
 
         return $countries;
+    }
+
+    private function bdContactsHasColumn(string $column): bool
+    {
+        static $cache = [];
+        if (array_key_exists($column, $cache)) {
+            return $cache[$column];
+        }
+
+        $cache[$column] = Schema::hasColumn('bd_contacts', $column);
+        return $cache[$column];
     }
 }
