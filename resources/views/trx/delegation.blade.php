@@ -105,32 +105,36 @@
       <form method="POST" action="{{ route('trx.delegation.store') }}">
         @csrf
         <div class="modal-body">
+          @if ($errors->delegationAdd->any())
+            <div class="alert alert-danger">Add Delegation failed. Please check the highlighted fields.</div>
+          @endif
           <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}" maxlength="100" required>
-            @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <input type="email" name="email" class="form-control @error('email', 'delegationAdd') is-invalid @enderror" value="{{ old('email') }}" maxlength="100" required>
+            @error('email', 'delegationAdd')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="mb-3">
             <label class="form-label">Name</label>
-            <input type="text" name="person_name" class="form-control @error('person_name') is-invalid @enderror" value="{{ old('person_name') }}" maxlength="60" required>
-            @error('person_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <input type="text" name="person_name" class="form-control @error('person_name', 'delegationAdd') is-invalid @enderror" value="{{ old('person_name') }}" maxlength="60" required>
+            @error('person_name', 'delegationAdd')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="mb-3">
             <label class="form-label">Password</label>
             <div class="delegation-pass-wrap">
               <span class="delegation-pass-icon"><i class="fa-solid fa-key"></i></span>
-              <input type="password" name="password" id="delegationAddPassword" class="form-control delegation-pass-input @error('password') is-invalid @enderror" minlength="8" maxlength="100" required>
+              <input type="password" name="password" id="delegationAddPassword" class="form-control delegation-pass-input @error('password', 'delegationAdd') is-invalid @enderror" minlength="8" maxlength="100" required>
               <button class="delegation-pass-toggle btn-toggle-password" type="button" data-target="#delegationAddPassword" aria-label="Toggle password visibility"><i class="fa-regular fa-eye"></i></button>
             </div>
-            @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            @error('password', 'delegationAdd')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="mb-0">
             <label class="form-label">Confirm Password</label>
             <div class="delegation-pass-wrap">
               <span class="delegation-pass-icon"><i class="fa-solid fa-key"></i></span>
-              <input type="password" name="password_confirmation" id="delegationAddPasswordConfirmation" class="form-control delegation-pass-input" minlength="8" maxlength="100" required>
+              <input type="password" name="password_confirmation" id="delegationAddPasswordConfirmation" class="form-control delegation-pass-input @error('password_confirmation', 'delegationAdd') is-invalid @enderror" minlength="8" maxlength="100" required>
               <button class="delegation-pass-toggle btn-toggle-password" type="button" data-target="#delegationAddPasswordConfirmation" aria-label="Toggle password visibility"><i class="fa-regular fa-eye"></i></button>
             </div>
+            @error('password_confirmation', 'delegationAdd')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
         </div>
         <div class="modal-footer">
@@ -153,26 +157,33 @@
         @csrf
         @method('PUT')
         <div class="modal-body">
+          @if ($errors->delegationEdit->any())
+            <div class="alert alert-danger">Edit Delegation failed. Please check the highlighted fields.</div>
+          @endif
+          <input type="hidden" name="delegation_id" id="delegationEditId" value="{{ old('delegation_id') }}">
           <div class="small text-muted mb-3" id="delegationEditEmail">-</div>
           <div class="mb-3">
             <label class="form-label">Name</label>
-            <input type="text" name="person_name" id="delegationEditName" class="form-control" maxlength="60" required>
+            <input type="text" name="person_name" id="delegationEditName" class="form-control @error('person_name', 'delegationEdit') is-invalid @enderror" maxlength="60" value="{{ old('person_name') }}" required>
+            @error('person_name', 'delegationEdit')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="mb-3">
             <label class="form-label">New Password (optional)</label>
             <div class="delegation-pass-wrap">
               <span class="delegation-pass-icon"><i class="fa-solid fa-key"></i></span>
-              <input type="password" name="password" id="delegationEditPassword" class="form-control delegation-pass-input" minlength="8" maxlength="100">
+              <input type="password" name="password" id="delegationEditPassword" class="form-control delegation-pass-input @error('password', 'delegationEdit') is-invalid @enderror" minlength="8" maxlength="100">
               <button class="delegation-pass-toggle btn-toggle-password" type="button" data-target="#delegationEditPassword" aria-label="Toggle password visibility"><i class="fa-regular fa-eye"></i></button>
             </div>
+            @error('password', 'delegationEdit')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="mb-0">
             <label class="form-label">Confirm New Password</label>
             <div class="delegation-pass-wrap">
               <span class="delegation-pass-icon"><i class="fa-solid fa-key"></i></span>
-              <input type="password" name="password_confirmation" id="delegationEditPasswordConfirmation" class="form-control delegation-pass-input" minlength="8" maxlength="100">
+              <input type="password" name="password_confirmation" id="delegationEditPasswordConfirmation" class="form-control delegation-pass-input @error('password_confirmation', 'delegationEdit') is-invalid @enderror" minlength="8" maxlength="100">
               <button class="delegation-pass-toggle btn-toggle-password" type="button" data-target="#delegationEditPasswordConfirmation" aria-label="Toggle password visibility"><i class="fa-regular fa-eye"></i></button>
             </div>
+            @error('password_confirmation', 'delegationEdit')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
         </div>
         <div class="modal-footer">
@@ -187,6 +198,30 @@
 
 @push('scripts')
 <script>
+function bindPasswordMatchValidation(form) {
+  if (!form) return;
+  const passwordInput = form.querySelector('input[name="password"]');
+  const passwordConfirmationInput = form.querySelector('input[name="password_confirmation"]');
+  if (!passwordInput || !passwordConfirmationInput) return;
+
+  const syncValidation = () => {
+    const password = passwordInput.value || '';
+    const confirmation = passwordConfirmationInput.value || '';
+    const isEditForm = form.id === 'delegationEditForm';
+    const shouldCheck = isEditForm ? (password.length > 0 || confirmation.length > 0) : true;
+
+    if (shouldCheck && password !== confirmation) {
+      passwordConfirmationInput.setCustomValidity('Password and Confirm Password must be the same.');
+    } else {
+      passwordConfirmationInput.setCustomValidity('');
+    }
+  };
+
+  passwordInput.addEventListener('input', syncValidation);
+  passwordConfirmationInput.addEventListener('input', syncValidation);
+  syncValidation();
+}
+
 document.addEventListener('click', (event) => {
   const toggleBtn = event.target.closest('.btn-toggle-password');
   if (toggleBtn) {
@@ -209,15 +244,75 @@ document.addEventListener('click', (event) => {
   const form = document.getElementById('delegationEditForm');
   const nameInput = document.getElementById('delegationEditName');
   const emailText = document.getElementById('delegationEditEmail');
+  const idInput = document.getElementById('delegationEditId');
   const passInput = document.getElementById('delegationEditPassword');
   const passConfInput = document.getElementById('delegationEditPasswordConfirmation');
 
   if (!form || !nameInput || !emailText || !id) return;
   form.setAttribute('action', `/trx/delegation/${encodeURIComponent(id)}`);
+  if (idInput) idInput.value = id;
   nameInput.value = name;
   emailText.textContent = email;
   if (passInput) passInput.value = '';
   if (passConfInput) passConfInput.value = '';
+  if (form) bindPasswordMatchValidation(form);
+});
+
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const isAddForm = form.getAttribute('action') === "{{ route('trx.delegation.store') }}";
+  const isEditForm = form.id === 'delegationEditForm';
+  if (!isAddForm && !isEditForm) return;
+
+  const passwordInput = form.querySelector('input[name="password"]');
+  const passwordConfirmationInput = form.querySelector('input[name="password_confirmation"]');
+  if (!passwordInput || !passwordConfirmationInput) return;
+
+  const password = passwordInput.value || '';
+  const confirmation = passwordConfirmationInput.value || '';
+
+  if (password !== confirmation) {
+    event.preventDefault();
+    passwordConfirmationInput.setCustomValidity('Password and Confirm Password must be the same.');
+    form.reportValidity();
+    passwordConfirmationInput.focus();
+    return;
+  }
+
+  passwordConfirmationInput.setCustomValidity('');
+});
+
+bindPasswordMatchValidation(document.querySelector('form[action="{{ route('trx.delegation.store') }}"]'));
+bindPasswordMatchValidation(document.getElementById('delegationEditForm'));
+
+document.addEventListener('DOMContentLoaded', () => {
+  const hasAddErrors = @json($errors->delegationAdd->any());
+  const hasEditErrors = @json($errors->delegationEdit->any());
+  if (hasAddErrors) {
+    const addModalEl = document.getElementById('delegationAddDialog');
+    if (addModalEl) bootstrap.Modal.getOrCreateInstance(addModalEl).show();
+  }
+
+  if (hasEditErrors) {
+    const editId = @json(old('delegation_id'));
+    const editModalEl = document.getElementById('delegationEditDialog');
+    const form = document.getElementById('delegationEditForm');
+    if (!editModalEl || !form || !editId) return;
+
+    form.setAttribute('action', `/trx/delegation/${encodeURIComponent(editId)}`);
+    const idInput = document.getElementById('delegationEditId');
+    if (idInput) idInput.value = String(editId);
+
+    const editButton = document.querySelector(`.btn-delegation-edit[data-delegation-id="${String(editId)}"]`);
+    const emailText = document.getElementById('delegationEditEmail');
+    if (editButton && emailText) {
+      emailText.textContent = editButton.getAttribute('data-delegation-email') || '-';
+    }
+
+    bootstrap.Modal.getOrCreateInstance(editModalEl).show();
+  }
 });
 </script>
 @endpush

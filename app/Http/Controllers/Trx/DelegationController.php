@@ -47,10 +47,11 @@ class DelegationController extends Controller
             abort(403, 'You are not allowed to manage Delegation.');
         }
 
-        $data = $request->validate([
+        $data = $request->validateWithBag('delegationAdd', [
             'email' => ['required', 'email', 'max:100', 'unique:bd_contacts,email'],
             'person_name' => ['required', 'string', 'max:60'],
             'password' => ['required', 'string', 'min:8', 'max:100', 'confirmed'],
+            'password_confirmation' => ['required', 'string', 'min:8', 'max:100', 'same:password'],
         ]);
 
         BdContact::query()->create([
@@ -109,9 +110,11 @@ class DelegationController extends Controller
                 ->withErrors(['delegation' => 'Default user cannot be edited.']);
         }
 
-        $data = $request->validate([
+        $data = $request->validateWithBag('delegationEdit', [
+            'delegation_id' => ['required', 'integer'],
             'person_name' => ['required', 'string', 'max:60'],
-            'password' => ['nullable', 'string', 'min:8', 'max:100', 'confirmed'],
+            'password' => ['nullable', 'string', 'min:8', 'max:100', 'confirmed', 'required_with:password_confirmation'],
+            'password_confirmation' => ['nullable', 'string', 'min:8', 'max:100', 'same:password', 'required_with:password'],
         ]);
 
         $target->person_name = trim((string) $data['person_name']);
