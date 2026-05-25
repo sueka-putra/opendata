@@ -27,7 +27,10 @@ class User extends Authenticatable
         'email',
         'password',
         'country_code',
-        'event'
+        'event',
+        'must_change_password',
+        'password_generated_at',
+        'password_changed_at',
     ];
 
     /**
@@ -50,6 +53,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
+            'password_generated_at' => 'datetime',
+            'password_changed_at' => 'datetime',
         ];
     }
     

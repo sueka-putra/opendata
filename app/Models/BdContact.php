@@ -14,6 +14,9 @@ class BdContact extends Authenticatable
 
     protected $casts = [
         'isSelected' => 'boolean',
+        'must_change_password' => 'boolean',
+        'password_generated_at' => 'datetime',
+        'password_changed_at' => 'datetime',
     ];
 
     // NOTE: this assumes your project adds a `password` column to bd_contacts OR

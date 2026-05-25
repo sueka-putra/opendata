@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\Internal\VersionApiController;
 
 Route::get('/i/version', [VersionApiController::class, 'show']);
 
-Route::middleware(['web', 'auth'])->group(function () {
+Route::middleware(['web', 'auth', 'force.password.change'])->group(function () {
 
     // Admin masters
     Route::prefix('adm')->middleware('admin.only')->group(function () {
@@ -39,6 +39,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('/user', [UserApiController::class, 'store']);
         Route::put('/user/{id}', [UserApiController::class, 'update']);
         Route::delete('/user/{id}', [UserApiController::class, 'destroy']);
+        Route::post('/users/generate-temp-passwords', [UserApiController::class, 'generateTemporaryPasswords']);
     });
 
     // Transactions

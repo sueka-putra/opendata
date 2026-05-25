@@ -45,6 +45,9 @@ class AuthenticatedSessionController extends Controller
         }
 
         $defaultRoute = ($user && $user->isAdmin()) ? 'trx.periods' : 'trx.active';
+        if ($user && (bool) ($user->must_change_password ?? false)) {
+            return redirect()->route('password.edit');
+        }
 
         return redirect()->route($defaultRoute);
     }

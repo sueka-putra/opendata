@@ -4,9 +4,13 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\JsonEnvelope;
+use App\Mail\TemporaryPasswordGeneratedMail;
 use App\Models\BdContact;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class UserApiController extends Controller
 {
@@ -95,5 +99,80 @@ class UserApiController extends Controller
         $u = $this->baseQuery()->findOrFail($id);
         $u->delete();
         return $this->ok(null, 'deleted');
+    }
+
+    public function generateTemporaryPasswords(Request $request)
+    {
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $ids = collect(Arr::get($validated, 'user_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return $this->fail('No users selected.', 422);
+        }
+
+        $users = $this->baseQuery()
+            ->whereIn('id', $ids->all())
+            ->get()
+            ->keyBy('id');
+
+        $result = [
+            'selected' => $ids->count(),
+            'updated' => 0,
+            'emails_sent' => 0,
+            'failed' => [],
+        ];
+
+        foreach ($ids as $id) {
+            $user = $users->get($id);
+            if (!$user) {
+                $result['failed'][] = [
+                    'id' => $id,
+                    'email' => null,
+                    'reason' => 'User not found or not eligible.',
+                ];
+                continue;
+            }
+
+            $email = strtolower(trim((string) ($user->email ?? '')));
+            if ($email === '') {
+                $result['failed'][] = [
+                    'id' => (int) $user->id,
+                    'email' => null,
+                    'reason' => 'User has no email address.',
+                ];
+                continue;
+            }
+
+            $temporaryPassword = Str::password(12, true, true, true, false);
+            $user->password = Hash::make($temporaryPassword);
+            $user->must_change_password = true;
+            $user->password_generated_at = now();
+            $user->save();
+            $result['updated']++;
+
+            try {
+                Mail::to($email)->send(new TemporaryPasswordGeneratedMail(
+                    (string) ($user->person_name ?: $user->name ?: 'User'),
+                    $temporaryPassword
+                ));
+                $result['emails_sent']++;
+            } catch (\Throwable $e) {
+                $result['failed'][] = [
+                    'id' => (int) $user->id,
+                    'email' => $email,
+                    'reason' => 'Email delivery failed.',
+                ];
+            }
+        }
+
+        $result['failed_count'] = count($result['failed']);
+        return $this->ok($result);
     }
 }

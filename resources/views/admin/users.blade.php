@@ -8,25 +8,31 @@
         <div class="period-subtitle">Manage OpenData WGDSA contacts.</div>
       </div>
       <div class="d-flex gap-2">
+        <button class="btn od-btn-outline" id="btnGenerate">Generate</button>
         <button class="btn od-btn-primary" id="btnAdd">Add</button>
       </div>
     </div>
 
     <div class="period-table-card">
       <div class="period-table-toolbar users-filter-row">
+        <input type="text" tabindex="-1" autocomplete="username" class="users-autofill-trap" aria-hidden="true">
+        <input type="password" tabindex="-1" autocomplete="new-password" class="users-autofill-trap" aria-hidden="true">
         <label class="users-filter-label" for="countryFilter">Country</label>
         <div class="users-country-wrap">
           <select class="form-select form-select-sm users-country-select" id="countryFilter">
             <option value=""></option>
           </select>
         </div>
-        <label class="users-filter-label" for="searchInput">Search</label>
-        <input class="form-control form-control-sm users-search-input" id="searchInput" name="users_search_keyword" type="search" placeholder="name or email" value="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true">
+        <label class="users-filter-label" for="usersFilterKeyword">Search</label>
+        <input class="form-control form-control-sm users-search-input" id="usersFilterKeyword" name="filter_keyword_text" type="search" placeholder="name or email" value="" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true">
       </div>
       <div class="table-responsive">
         <table class="table period-table align-middle mb-0" id="tbl">
           <thead>
             <tr>
+              <th style="width:54px;" class="text-center">
+                <input type="checkbox" id="selectAllUsers" aria-label="Select all users">
+              </th>
               <th style="width:220px;">Email</th>
               <th style="width:80px;">Title</th>
               <th style="width:180px;">Name</th>
@@ -104,6 +110,15 @@
     min-width: 245px;
   }
 
+  .users-autofill-trap {
+    position: absolute !important;
+    left: -99999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
   .users-country-wrap::after {
     content: '\25BE';
     position: absolute;
@@ -136,6 +151,10 @@
     border-color: #c7d3e2;
   }
 
+  #msgBody {
+    white-space: pre-line;
+  }
+
   @media (max-width: 767.98px) {
     .users-filter-row {
       flex-wrap: wrap;
@@ -158,7 +177,10 @@ const mdlMessage = new bootstrap.Modal(document.getElementById('mdlMessage'));
 const flashStatus = @json(session('status'));
 const profileEditBase = @json(route('profile.edit'));
 const countryFilter = document.getElementById('countryFilter');
-const searchInput = document.getElementById('searchInput');
+const searchInput = document.getElementById('usersFilterKeyword');
+const btnGenerate = document.getElementById('btnGenerate');
+const btnAdd = document.getElementById('btnAdd');
+const selectAllUsers = document.getElementById('selectAllUsers');
 const countries = [
   { code: '00', name: 'ASEAN Secretariat' },
   { code: 'BN', name: 'Brunei Darussalam' },
@@ -174,6 +196,8 @@ const countries = [
 ];
 let usersCache = [];
 let loadTimer = null;
+let selectedUserIds = new Set();
+let isGenerating = false;
 
 function clearSearchInput() {
   if (!searchInput) return;
@@ -227,8 +251,10 @@ function applyClientFilters(){
 
   tblBody.innerHTML = '';
   filtered.forEach(r => {
+    const isChecked = selectedUserIds.has(Number(r.id)) ? 'checked' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td class="text-center"><input type="checkbox" class="user-row-check" data-user-id="${r.id}" ${isChecked} aria-label="Select user ${r.email ?? ''}"></td>
       <td>${r.email ?? ''}</td>
       <td>${r.title ?? ''}</td>
       <td>${r.person_name ?? ''}</td>
@@ -238,6 +264,45 @@ function applyClientFilters(){
       </td>`;
     tblBody.appendChild(tr);
   });
+  syncSelectAllState();
+}
+
+function syncSelectAllState(){
+  if (!selectAllUsers) return;
+  const visibleChecks = Array.from(document.querySelectorAll('.user-row-check'));
+  if (!visibleChecks.length) {
+    selectAllUsers.checked = false;
+    selectAllUsers.indeterminate = false;
+    return;
+  }
+
+  const checkedCount = visibleChecks.filter((el) => el.checked).length;
+  selectAllUsers.checked = checkedCount > 0 && checkedCount === visibleChecks.length;
+  selectAllUsers.indeterminate = checkedCount > 0 && checkedCount < visibleChecks.length;
+}
+
+function buildGenerateSummary(data){
+  const selected = Number(data?.selected || 0);
+  const updated = Number(data?.updated || 0);
+  const emailsSent = Number(data?.emails_sent || 0);
+  const failed = Array.isArray(data?.failed) ? data.failed : [];
+  const lines = [
+    `Selected users: ${selected}`,
+    `Passwords generated: ${updated}`,
+    `Emails sent: ${emailsSent}`,
+    `Failed: ${failed.length}`,
+  ];
+  if (failed.length > 0) {
+    lines.push('');
+    lines.push('Failed users:');
+    failed.forEach((item) => {
+      const id = item?.id ?? '-';
+      const email = item?.email ?? '-';
+      const reason = item?.reason ?? 'Unknown error';
+      lines.push(`- [${id}] ${email}: ${reason}`);
+    });
+  }
+  return lines.join('\n');
 }
 
 function openForm(row={}){
@@ -253,11 +318,66 @@ function openForm(row={}){
   mdl.show();
 }
 
-document.getElementById('btnAdd').addEventListener('click', () => openForm({}));
+btnAdd.addEventListener('click', () => openForm({}));
 countryFilter.addEventListener('change', applyClientFilters);
 searchInput.addEventListener('input', () => {
   if (loadTimer) window.clearTimeout(loadTimer);
   loadTimer = window.setTimeout(applyClientFilters, 300);
+});
+selectAllUsers.addEventListener('change', (event) => {
+  const checked = !!event.target.checked;
+  document.querySelectorAll('.user-row-check').forEach((el) => {
+    const userId = Number(el.getAttribute('data-user-id'));
+    el.checked = checked;
+    if (checked) selectedUserIds.add(userId);
+    else selectedUserIds.delete(userId);
+  });
+  syncSelectAllState();
+});
+
+tblBody.addEventListener('change', (event) => {
+  const checkbox = event.target.closest('.user-row-check');
+  if (!checkbox) return;
+  const userId = Number(checkbox.getAttribute('data-user-id'));
+  if (checkbox.checked) selectedUserIds.add(userId);
+  else selectedUserIds.delete(userId);
+  syncSelectAllState();
+});
+
+btnGenerate.addEventListener('click', async () => {
+  if (isGenerating) return;
+  const userIds = Array.from(selectedUserIds).filter((id) => Number.isInteger(id) && id > 0);
+  if (!userIds.length) {
+    showMessage('Validation', 'Please select at least one user.');
+    return;
+  }
+
+  const confirmed = await odConfirm(
+    `Generate temporary passwords for ${userIds.length} selected user(s)?`,
+    'Generate Temporary Passwords'
+  );
+  if (!confirmed) return;
+
+  isGenerating = true;
+  btnGenerate.disabled = true;
+  btnGenerate.textContent = 'Generating...';
+  try {
+    const response = await odFetch('/api/adm/users/generate-temp-passwords', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_ids: userIds }),
+    });
+    await load();
+    selectedUserIds = new Set();
+    syncSelectAllState();
+    showMessage('Generate Result', buildGenerateSummary(response?.data || {}));
+  } catch (err) {
+    showMessage('Generate Failed', err.message || 'Temporary password generation failed.');
+  } finally {
+    isGenerating = false;
+    btnGenerate.disabled = false;
+    btnGenerate.textContent = 'Generate';
+  }
 });
 
 document.getElementById('btnSave').addEventListener('click', async ()=>{
@@ -316,7 +436,7 @@ window.setTimeout(clearSearchInput, 250);
 window.addEventListener('load', clearSearchInput, { once: true });
 load();
 if (flashStatus === 'user-deleted') {
-  showMessage('Deleted', 'User berhasil dihapus.');
+  showMessage('Deleted', 'User deleted successfully.');
 }
 </script>
 @endpush

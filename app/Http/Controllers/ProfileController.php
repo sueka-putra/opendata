@@ -116,6 +116,8 @@ class ProfileController extends Controller
         }
 
         $context['target']->password = Hash::make($validated['password']);
+        $context['target']->must_change_password = false;
+        $context['target']->password_changed_at = now();
         $context['target']->save();
 
         if ($context['target_user_id']) {

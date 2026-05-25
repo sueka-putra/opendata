@@ -44,6 +44,12 @@
                     </div>
                 @endif
 
+                @if((bool) (auth()->user()?->must_change_password ?? false))
+                    <div class="alert alert-warning">
+                        You are using a temporary password. Please change your password to continue.
+                    </div>
+                @endif
+
                 <p class="cp-help">Enter your current password and choose a new password. Your password must be at least 8 characters long.</p>
 
                 <form method="post" action="{{ route('profile.password') }}">
