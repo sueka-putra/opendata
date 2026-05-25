@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AssessmentCountry;
+use App\Models\AssessmentPeriod;
 use App\Models\BdContact;
 use App\Models\Country;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -104,6 +107,7 @@ class ProfileController extends Controller
     public function updatePassword(Request $request): RedirectResponse
     {
         $context = $this->resolveContext($request);
+        $wasForcedChange = (bool) ($context['target']->must_change_password ?? false);
 
         if ($context['is_admin'] && $context['is_managing_other_user']) {
             $validated = $request->validateWithBag('updatePassword', [
@@ -130,7 +134,12 @@ class ProfileController extends Controller
                 ->with('status', 'password-updated');
         }
 
-        return Redirect::route('password.edit')
+        [$nextRoute, $nextRouteParams, $welcomePayload] = $this->resolvePostPasswordRouteData($context['target']);
+        if ($wasForcedChange && is_array($welcomePayload)) {
+            $request->session()->put('welcome_dialog_payload', $welcomePayload);
+        }
+
+        return Redirect::route($nextRoute, $nextRouteParams)
             ->with('status', 'password-updated');
     }
 
@@ -247,5 +256,82 @@ class ProfileController extends Controller
 
         $cache[$column] = Schema::hasColumn('bd_contacts', $column);
         return $cache[$column];
+    }
+
+    /**
+     * @return array{0:string,1:array,2:array|null}
+     */
+    private function resolvePostPasswordRouteData($user): array
+    {
+        if ($user->isAdmin()) {
+            return ['trx.periods', [], null];
+        }
+
+        $countryCode = trim((string) ($user->country_code ?? ''));
+        $todayUtc = Carbon::now('UTC')->toDateString();
+        $activePeriod = null;
+        if ($countryCode !== '') {
+            $activePeriod = AssessmentPeriod::query()
+                ->where('active', 1)
+                ->where(function ($q) use ($todayUtc) {
+                    $q->whereNull('due_date')
+                        ->orWhereDate('due_date', '>=', $todayUtc);
+                })
+                ->whereExists(function ($q) use ($countryCode) {
+                    $q->selectRaw('1')
+                        ->from('od_trx_assessment_countries as ac')
+                        ->whereColumn('ac.period_id', 'od_trx_assessment_periods.id')
+                        ->where('ac.country_code', $countryCode);
+                })
+                ->orderByDesc('year')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        if (!$activePeriod) {
+            return ['dashboard', [], [
+                'has_active_assessment' => false,
+                'dashboard_url' => route('dashboard'),
+                'cookie_name' => 'od_welcome_dialog_shown_u'.$user->id,
+            ]];
+        }
+
+        $assessmentCountryExists = AssessmentCountry::query()
+            ->where('period_id', (int) $activePeriod->id)
+            ->where('country_code', $countryCode)
+            ->exists();
+
+        if (!$assessmentCountryExists) {
+            return ['dashboard', [], [
+                'has_active_assessment' => false,
+                'dashboard_url' => route('dashboard'),
+                'cookie_name' => 'od_welcome_dialog_shown_u'.$user->id,
+            ]];
+        }
+
+        return [
+            'trx.form',
+            [
+                'periodid' => (int) $activePeriod->id,
+                'country_code' => $countryCode,
+            ],
+            [
+                'has_active_assessment' => true,
+                'assessment_name' => (string) ($activePeriod->description ?: ($activePeriod->title ?? 'Assessment')),
+                'status' => 'Open',
+                'deadline_date' => optional($activePeriod->due_date)->format('d M Y'),
+                'take_assessment_url' => route('trx.form', [
+                    'periodid' => (int) $activePeriod->id,
+                    'country_code' => $countryCode,
+                ]),
+                'view_quick_guide_url' => route('trx.form', [
+                    'periodid' => (int) $activePeriod->id,
+                    'country_code' => $countryCode,
+                    'open_quick_guide' => 1,
+                ]),
+                'dashboard_url' => route('dashboard'),
+                'cookie_name' => 'od_welcome_dialog_shown_u'.$user->id,
+            ],
+        ];
     }
 }
