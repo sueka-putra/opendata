@@ -192,6 +192,7 @@ const countries = [
   { code: 'PH', name: 'Philippines' },
   { code: 'SG', name: 'Singapore' },
   { code: 'TH', name: 'Thailand' },
+  { code: 'TL', name: 'Timor-Leste' },
   { code: 'VN', name: 'Viet Nam' },
 ];
 let usersCache = [];
