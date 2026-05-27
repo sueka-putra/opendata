@@ -105,9 +105,11 @@
                     <button type="submit" class="cp-submit"><i class="fa-solid fa-floppy-disk"></i> Change Password</button>
                 </form>
 
-                <div class="text-center">
-                    <a class="cp-cancel" href="{{ route('dashboard') }}"><i class="fa-solid fa-xmark"></i><span>Cancel</span></a>
-                </div>
+                @if(!(bool) (auth()->user()?->must_change_password ?? false))
+                    <div class="text-center">
+                        <a class="cp-cancel" href="{{ route('dashboard') }}"><i class="fa-solid fa-xmark"></i><span>Cancel</span></a>
+                    </div>
+                @endif
 
                 <div class="cp-tips">
                     <div class="cp-tips-title"><i class="fa-solid fa-shield-halved"></i><span>Security Tips:</span></div>
