@@ -183,12 +183,20 @@ class UserApiController extends Controller
 
     private function bdContactsHasColumn(string $column): bool
     {
-        static $cache = [];
-        if (array_key_exists($column, $cache)) {
-            return $cache[$column];
+        static $columns = null;
+        if (is_array($columns)) {
+            return in_array($column, $columns, true);
         }
 
-        $cache[$column] = Schema::hasColumn('bd_contacts', $column);
-        return $cache[$column];
+        try {
+            $columns = array_map(
+                static fn ($name) => (string) $name,
+                Schema::getColumnListing('bd_contacts')
+            );
+        } catch (\Throwable $e) {
+            $columns = [];
+        }
+
+        return in_array($column, $columns, true);
     }
 }

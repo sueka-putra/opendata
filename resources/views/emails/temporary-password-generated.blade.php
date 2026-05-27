@@ -25,9 +25,16 @@
               <p style="margin:0 0 14px 0;">
                 You may log in using your registered email address and the temporary password below:
               </p>
-              <div style="margin:0 0 16px 0;padding:14px 16px;background:#f8fbff;border:1px solid #cfe0f5;border-radius:10px;">
-                Temporary Password: <strong style="font-size:16px;letter-spacing:0.2px;">{{ $temporaryPassword }}</strong>
-              </div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;">
+                <tr>
+                  <td style="padding:14px 16px;background:#f8fbff;border:1px solid #cfe0f5;border-radius:10px;">
+                    Temporary Password: <strong style="font-size:16px;letter-spacing:0.2px;">{{ $temporaryPassword }}</strong>
+                  </td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="font-size:0;line-height:0;height:16px;">&nbsp;</td></tr>
+              </table>
               <p style="margin:0 0 14px 0;">
                 For security reasons, you will be required to change your password after logging in.
               </p>

@@ -16,6 +16,7 @@
 <body class="od-app">
 @php
     $authUser = auth()->user();
+    $hideSidebarForForcedPasswordChange = (bool) ($authUser?->must_change_password ?? false);
     $welcomeDialogPayload = session()->pull('welcome_dialog_payload');
     $isAdmin = $authUser?->isAdmin();
     $initial = strtoupper(substr($authUser?->name ?? 'U', 0, 1));
@@ -31,9 +32,11 @@
 <header class="od-topbar">
     <div class="od-topbar-inner">
         <div class="d-flex align-items-center gap-2">
-            <button class="od-sidebar-toggle" type="button" data-od-sidebar-toggle aria-label="Toggle menu">
-                <i class="fa-solid fa-bars"></i>
-            </button>
+            @unless($hideSidebarForForcedPasswordChange)
+                <button class="od-sidebar-toggle" type="button" data-od-sidebar-toggle aria-label="Toggle menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            @endunless
             <a class="od-brand" href="{{ route('dashboard') }}">
                 <img src="{{ asset('img/ASEANStats.jpg') }}" alt="ASEANstats">
             </a>
@@ -41,7 +44,8 @@
     </div>
 </header>
 
-<div class="od-shell">
+<div class="od-shell {{ $hideSidebarForForcedPasswordChange ? 'od-shell-no-sidebar' : '' }}">
+    @unless($hideSidebarForForcedPasswordChange)
     <aside class="od-sidebar">
         <div class="od-user-card">
             <div class="od-user-card-head">
@@ -100,6 +104,7 @@
             @endif
         </nav>
     </aside>
+    @endunless
 
     <main class="od-main">
         @yield('content')

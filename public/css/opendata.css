@@ -70,6 +70,10 @@ body.od-app {
   min-height: calc(100vh - 55px);
 }
 
+.od-shell.od-shell-no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .od-sidebar {
   background: var(--od-sidebar-bg);
   border: 1px solid var(--od-sidebar-border);
