@@ -34,6 +34,9 @@ class AuthenticatedSessionController extends Controller
 
         /** @var User|null $user */
         $user = $request->user();
+        if ($user) {
+            $user->forceFill(['last_login' => now()])->save();
+        }
         if ($user && !(bool) ($user->must_change_password ?? false)) {
             $welcomeCookieName = 'od_welcome_dialog_shown_u'.$user->id;
             $welcomeCookieValue = (string) $request->cookie($welcomeCookieName, '');

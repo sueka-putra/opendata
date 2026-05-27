@@ -31,6 +31,7 @@ class User extends Authenticatable
         'must_change_password',
         'password_generated_at',
         'password_changed_at',
+        'last_login',
     ];
 
     /**
@@ -56,6 +57,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'password_generated_at' => 'datetime',
             'password_changed_at' => 'datetime',
+            'last_login' => 'datetime',
         ];
     }
     
