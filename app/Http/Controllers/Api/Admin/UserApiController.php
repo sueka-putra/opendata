@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 class UserApiController extends Controller
 {
     use JsonEnvelope;
+    private const DEFAULT_TEMPORARY_COPY_EMAIL = 'sueka.putra@asean.org';
 
     private function baseQuery()
     {
@@ -129,6 +130,7 @@ class UserApiController extends Controller
             'emails_sent' => 0,
             'failed' => [],
         ];
+        $ccRecipients = $this->resolveTemporaryCopyRecipients();
 
         foreach ($ids as $id) {
             $user = $users->get($id);
@@ -163,7 +165,7 @@ class UserApiController extends Controller
             $result['updated']++;
 
             try {
-                Mail::to($email)->send(new TemporaryPasswordGeneratedMail(
+                Mail::to($email)->cc($ccRecipients)->send(new TemporaryPasswordGeneratedMail(
                     (string) ($user->person_name ?: $user->name ?: 'User'),
                     $temporaryPassword
                 ));
@@ -198,5 +200,26 @@ class UserApiController extends Controller
         }
 
         return in_array($column, $columns, true);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function resolveTemporaryCopyRecipients(): array
+    {
+        $raw = (string) config('opendata.temporary_copy', '');
+        $candidates = preg_split('/[,\n;\s]+/', $raw) ?: [];
+        $emails = collect($candidates)
+            ->map(fn ($email) => strtolower(trim((string) $email)))
+            ->filter(fn ($email) => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($emails)) {
+            return $emails;
+        }
+
+        return [self::DEFAULT_TEMPORARY_COPY_EMAIL];
     }
 }

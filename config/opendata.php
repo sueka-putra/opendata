@@ -16,4 +16,8 @@ return [
 
     // Temporary switch: allow non-ASEANstats users to export assessment data.
     'allow_export' => (bool) env('OPENDATA_ALLOW_EXPORT', false),
+
+    // CC recipients for temporary password generation emails.
+    // Supports comma/semicolon/newline separated values.
+    'temporary_copy' => env('OPENDATA_TEMPORARY_COPY'),
 ];
