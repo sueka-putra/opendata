@@ -351,7 +351,7 @@ class FormApiController extends Controller
             $downloadName = $fileName;
         }
 
-        AuditLogger::log($request, 'download attached template', $ac->id);
+        //AuditLogger::log($request, 'download attached template', $ac->id);
 
         return Storage::disk('local')->download($storagePath, $downloadName);
     }

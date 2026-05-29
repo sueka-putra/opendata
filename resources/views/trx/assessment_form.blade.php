@@ -2424,6 +2424,59 @@
     });
   }
 
+  function buildSummaryCalculationRows() {
+    const summaries = Array.isArray(pageState.summary) ? pageState.summary : [];
+    const weighted = pageState.weightedScore || {};
+
+    const rows = summaries.map((s) => {
+      const totalRows = Number(s.total_rows || 0);
+      const completedRows = Number(s.completed_rows || 0);
+      const coverageMax = Number(s.coverage_max_score || 0);
+      const coverageActual = Number(s.coverage_actual_score || 0);
+      const coverageSub = Number(s.coverage_sub_score_ratio || 0);
+      const opennessMax = Number(s.opennes_max_score || 0);
+      const opennessActual = Number(s.opennes_actual_score || 0);
+      const opennessSub = Number(s.opennes_sub_score_ratio || 0);
+      const overall = Number(s.overall_score_ratio || 0);
+      const eligibleRows = Math.round(coverageMax / 3);
+      const notConsideredRows = Math.max(0, totalRows - eligibleRows);
+
+      return [
+        Number(s.section_id || 0),
+        String(s.section?.title || (s.section_id ? `Section ${s.section_id}` : '-')),
+        totalRows,
+        completedRows,
+        notConsideredRows,
+        coverageMax,
+        coverageActual,
+        exportNumeric(coverageSub, 6),
+        opennessMax,
+        opennessActual,
+        exportNumeric(opennessSub, 6),
+        exportNumeric(overall, 6),
+        'coverage_sub = coverage_actual / coverage_max; openness_sub = openness_actual / openness_max; overall = (0.5 * coverage_sub) + (0.5 * openness_sub)',
+      ];
+    });
+
+    rows.push([
+      0,
+      'Weighted Average',
+      null,
+      null,
+      null,
+      null,
+      null,
+      exportNumeric(weighted.coverage_sub_score_ratio, 6),
+      null,
+      null,
+      exportNumeric(weighted.opennes_sub_score_ratio, 6),
+      exportNumeric(weighted.overall_score_ratio, 6),
+      'weighted values are average of section sub-scores; weighted_overall = (0.5 * weighted_coverage_sub) + (0.5 * weighted_openness_sub)',
+    ]);
+
+    return rows;
+  }
+
   function exportFormToExcel() {
     hideError();
     if (!boolFlag(pageState.canExport)) {
@@ -2467,6 +2520,25 @@
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Assessment');
+
+    const summaryHeaders = [
+      'Section ID',
+      'Section',
+      'Total Rows',
+      'Completed Rows',
+      'Not Considered Rows',
+      'Coverage Max Score',
+      'Coverage Actual Score',
+      'Coverage Sub Score (Ratio)',
+      'Openness Max Score',
+      'Openness Actual Score',
+      'Openness Sub Score (Ratio)',
+      'Overall Score (Ratio)',
+      'Calculation Rule',
+    ];
+    const summaryRows = buildSummaryCalculationRows();
+    const summaryWorksheet = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+    XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Summary Calculation');
 
     const periodYear = pageState.period?.year ? String(pageState.period.year) : 'period';
     const countryCode = pageState.assessmentCountry?.country_code
