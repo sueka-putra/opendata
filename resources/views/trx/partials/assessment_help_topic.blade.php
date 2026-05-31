@@ -22,6 +22,9 @@
 @endphp
 
 <article>
+  @if(!empty($topic['custom_view']))
+    @include($topic['custom_view'])
+  @else
   <header class="help-topic-header">
     <h2 class="help-topic-title">{{ $topic['title'] ?? 'Help Detail' }}</h2>
     @if(!empty($topic['description']))
@@ -36,10 +39,36 @@
 
   @foreach(($topic['sections'] ?? []) as $section)
     <section class="help-topic-section">
+      @if(!empty($section['image']))
+        <div class="mb-3">
+          <img
+            src="{{ asset(ltrim((string) $section['image'], '/')) }}"
+            alt="{{ $section['heading'] ?? 'Help image' }}"
+            class="img-fluid rounded border"
+            style="border-color:#dbe7fb !important;"
+          >
+        </div>
+      @endif
       <h3>{{ $section['heading'] ?? '' }}</h3>
 
       @foreach(($section['paragraphs'] ?? []) as $paragraph)
         <p class="mb-2">{!! $renderHelpText($paragraph) !!}</p>
+        @if(
+          !empty($section['image_after_paragraph']) &&
+          (int) ($section['image_after_paragraph_index'] ?? 1) === ($loop->index + 1)
+        )
+          @php
+            $imageAfterParagraphWidth = trim((string) ($section['image_after_paragraph_width'] ?? '100%'));
+          @endphp
+          <div class="mt-2 mb-3">
+            <img
+              src="{{ asset(ltrim((string) $section['image_after_paragraph'], '/')) }}"
+              alt="{{ ($section['heading'] ?? 'Help section') . ' image' }}"
+              class="img-fluid rounded border"
+              style="border-color:#dbe7fb !important; width: {{ $imageAfterParagraphWidth }}; max-width: {{ $imageAfterParagraphWidth }};"
+            >
+          </div>
+        @endif
       @endforeach
 
       @if(!empty($section['bullets']))
@@ -49,6 +78,40 @@
           @endforeach
         </ul>
       @endif
+
+      @if(!empty($section['image_after']))
+        @php
+          $afterWidth = trim((string) ($section['image_after_width'] ?? '100%'));
+        @endphp
+        <div class="mt-3">
+          <img
+            src="{{ asset(ltrim((string) $section['image_after'], '/')) }}"
+            alt="{{ ($section['heading'] ?? 'Help section') . ' image' }}"
+            class="img-fluid rounded border"
+            style="border-color:#dbe7fb !important; width: {{ $afterWidth }}; max-width: {{ $afterWidth }};"
+          >
+        </div>
+      @endif
+
+      @if(!empty($section['image_after_list']) && is_array($section['image_after_list']))
+        @foreach($section['image_after_list'] as $img)
+          @php
+            $afterListSrc = is_array($img) ? ($img['src'] ?? '') : $img;
+            $afterListWidth = trim((string) (is_array($img) ? ($img['width'] ?? '100%') : '100%'));
+          @endphp
+          @if(!empty($afterListSrc))
+            <div class="mt-3">
+              <img
+                src="{{ asset(ltrim((string) $afterListSrc, '/')) }}"
+                alt="{{ ($section['heading'] ?? 'Help section') . ' image' }}"
+                class="img-fluid rounded border"
+                style="border-color:#dbe7fb !important; width: {{ $afterListWidth }}; max-width: {{ $afterListWidth }};"
+              >
+            </div>
+          @endif
+        @endforeach
+      @endif
     </section>
   @endforeach
+  @endif
 </article>

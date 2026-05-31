@@ -1868,8 +1868,15 @@
 
     const modeText = periodOpen ? 'Open' : 'Complete';
     const periodDescription = String(pageState.period.description || '-').trim() || '-';
+    const periodYearText = String(pageState.period.year || '-').trim() || '-';
     const dueDateText = fmtDate(pageState.period.due_date);
-    meta.textContent = `${periodDescription} | Status: ${modeText} | Due date: ${dueDateText}`;
+    const countryNameText = String(
+      pageState.assessmentCountry.country_name
+      || pageState.assessmentCountry.country_code
+      || pageState.countryCode
+      || '-'
+    ).trim() || '-';
+    meta.textContent = `${periodDescription} (Reference year: ${periodYearText}) | Status: ${modeText} | Due date: ${dueDateText} | Country: ${countryNameText}`;
 
     if (periodOpen && !isPastDueDate) {
       hint.className = 'period-hint mb-3';

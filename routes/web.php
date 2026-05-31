@@ -18,9 +18,9 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
-Route::middleware(['auth', 'force.password.change'])->group(function () {
-    Route::get('/help', [AssessmentHelpController::class, 'index'])->name('help');
+Route::get('/help', [AssessmentHelpController::class, 'index'])->name('help');
 
+Route::middleware(['auth', 'force.password.change'])->group(function () {
     Route::view('/dashboard', 'dashboard')->name('dashboard');
     Route::get('/change-password', [ProfileController::class, 'changePassword'])->name('password.edit');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
