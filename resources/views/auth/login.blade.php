@@ -47,5 +47,6 @@
         </div>
 
         <button type="submit" class="submit-btn">Sign In</button>
+        <a class="help-center-link" href="/help?topic=login" target="helpCenterTab">Help center</a>
     </form>
 </x-auth-themed-layout>

@@ -102,6 +102,10 @@
                 <i class="fa-solid fa-users"></i><span>Users</span>
             </a>
             @endif
+            <hr/>
+            <a class="od-menu-link {{ request()->is('help') || request()->is('help/*') ? 'active' : '' }}" href="/help" target="helpCenterTab" title="Help Center">
+                <i class="fa-solid fa-circle-question"></i><span>Help Center</span>
+            </a>
         </nav>
     </aside>
     @endunless

@@ -205,6 +205,16 @@
             padding: 15px 16px;
             cursor: pointer;
         }
+        .help-center-link {
+            display: block;
+            margin-top: 10px;
+            text-align: center;
+            color: #2f73d7;
+            font-size: 18px;
+            font-weight: 400;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
         .secondary-btn {
             width: 100%;
             border: 1px solid #2f79db;
@@ -239,6 +249,7 @@
             .remember,
             .link { font-size: 16px; }
             .submit-btn { font-size: 23px; }
+            .help-center-link { font-size: 15px; }
         }
     </style>
 </head>
