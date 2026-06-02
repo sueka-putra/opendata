@@ -37,6 +37,7 @@
               <th style="width:80px;">Title</th>
               <th style="width:180px;">Name</th>
               <th style="width:180px;">Country</th>
+              <th style="width:160px;">Last Login</th>
               <th style="width:150px;"></th>
             </tr>
           </thead>
@@ -230,6 +231,23 @@ function countryName(code){
   return found ? found.name : (code || '');
 }
 
+function formatLastLogin(value){
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).replace('T', ' ').replace(/\.\d+Z?$/, '').replace(/Z$/, '');
+  }
+
+  return parsed.toLocaleString('en-GB', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
 async function load(){
   const j = await odFetch('/api/adm/users');
   usersCache = j.data || [];
@@ -260,6 +278,7 @@ function applyClientFilters(){
       <td>${r.title ?? ''}</td>
       <td>${r.person_name ?? ''}</td>
       <td>${countryName(r.country_code)}</td>
+      <td>${formatLastLogin(r.last_login)}</td>
       <td class="text-end">
         <a class="btn btn-outline-primary btn-sm" href="${profileEditBase}?user_id=${r.id}">Edit</a>
       </td>`;
