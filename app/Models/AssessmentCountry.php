@@ -16,6 +16,7 @@ class AssessmentCountry extends BaseLegacyModel
         'is_submitted',
         'template_file',
         'template_ori',
+        'created_by',
         'modified_by',
     ];
 
