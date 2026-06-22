@@ -48,16 +48,23 @@
     </div>
 
     <div class="dashboard-charts-grid mt-3">
-      <div id="dashboardHistoryChartCard" class="period-table-card dashboard-chart-card">
-        <div class="dashboard-chart-head">
-          <div>
-            <h2 class="dashboard-chart-title">Score Trend Overview</h2>
-            <p class="dashboard-chart-subtitle">Coverage, Opennes, and Overall score across assessment periods.</p>
+      <div class="dashboard-chart-block">
+        <div id="dashboardHistoryChartCard" class="period-table-card dashboard-chart-card">
+          <div class="dashboard-chart-head">
+            <div>
+              <h2 class="dashboard-chart-title">Score Trend Overview</h2>
+              <p class="dashboard-chart-subtitle">Coverage, Opennes, and Overall score across assessment periods.</p>
+            </div>
+          </div>
+          <div class="dashboard-chart-body">
+            <canvas id="historyScoreChart"></canvas>
           </div>
         </div>
-        <div class="dashboard-chart-body">
-          <canvas id="historyScoreChart"></canvas>
-        </div>
+        @if((string) auth()->user()?->country_code === '00')
+          <div class="dashboard-chart-actions">
+            <a href="#" id="btnPrintDashboardHistoryChart" class="dashboard-chart-print-link">Print</a>
+          </div>
+        @endif
       </div>
       <div id="dashboardSectionChartCard" class="period-table-card dashboard-chart-card">
         <div class="dashboard-chart-head">
@@ -162,6 +169,23 @@
       radial-gradient(120% 120% at 100% -10%, rgba(85, 160, 255, 0.15), transparent 55%),
       radial-gradient(120% 120% at -5% 120%, rgba(30, 111, 210, 0.12), transparent 50%),
       #ffffff;
+  }
+
+  .dashboard-chart-actions {
+    padding: 8px 4px 0;
+  }
+
+  .dashboard-chart-print-link {
+    color: #2563eb;
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .dashboard-chart-print-link:hover,
+  .dashboard-chart-print-link:focus-visible {
+    color: #174ea6;
+    text-decoration: underline;
   }
 
   .dashboard-chart-head {
@@ -405,6 +429,7 @@ const activeAssessmentBtn = document.getElementById('activeAssessmentBtn');
 let historyScoreChart = null;
 let sectionScoreChart = null;
 let latestRows = [];
+const btnPrintDashboardHistoryChart = document.getElementById('btnPrintDashboardHistoryChart');
 const btnDashboardHelpWizard = document.getElementById('btnDashboardHelpWizard');
 const dashboardHelpWizardDialogEl = document.getElementById('dashboardHelpWizardDialog');
 const dashboardHelpWizardModal = dashboardHelpWizardDialogEl && window.bootstrap?.Modal
@@ -457,6 +482,89 @@ function esc(input) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function drawDashboardExportRoundRect(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function downloadCanvasAsPng(canvas, filename) {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function downloadDashboardHistoryChartImage() {
+  const card = document.getElementById('dashboardHistoryChartCard');
+  const chartCanvas = document.getElementById('historyScoreChart');
+  if (!card || !chartCanvas) return;
+
+  const rect = card.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  if (!width || !height) return;
+
+  const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+  const outputCanvas = document.createElement('canvas');
+  outputCanvas.width = width * scale;
+  outputCanvas.height = height * scale;
+
+  const ctx = outputCanvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  drawDashboardExportRoundRect(ctx, 0, 0, width, height, 14);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  const gradientTop = ctx.createRadialGradient(width, 0, 0, width, 0, width * 0.72);
+  gradientTop.addColorStop(0, 'rgba(85, 160, 255, 0.15)');
+  gradientTop.addColorStop(1, 'rgba(85, 160, 255, 0)');
+  ctx.fillStyle = gradientTop;
+  ctx.fillRect(0, 0, width, height);
+
+  const gradientBottom = ctx.createRadialGradient(0, height, 0, 0, height, width * 0.55);
+  gradientBottom.addColorStop(0, 'rgba(30, 111, 210, 0.12)');
+  gradientBottom.addColorStop(1, 'rgba(30, 111, 210, 0)');
+  ctx.fillStyle = gradientBottom;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = 'rgba(196, 212, 234, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 68);
+  ctx.lineTo(width, 68);
+  ctx.stroke();
+
+  const title = card.querySelector('.dashboard-chart-title')?.textContent?.trim() || 'Score Trend Overview';
+  const subtitle = card.querySelector('.dashboard-chart-subtitle')?.textContent?.trim() || '';
+  ctx.fillStyle = '#2c4268';
+  ctx.font = '800 16px Arial, sans-serif';
+  ctx.fillText(title, 16, 28);
+  ctx.fillStyle = '#617799';
+  ctx.font = '13px Arial, sans-serif';
+  ctx.fillText(subtitle, 16, 50);
+
+  const canvasRect = chartCanvas.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const chartX = Math.round(canvasRect.left - cardRect.left);
+  const chartY = Math.round(canvasRect.top - cardRect.top);
+  const chartWidth = Math.round(canvasRect.width);
+  const chartHeight = Math.round(canvasRect.height);
+  ctx.drawImage(chartCanvas, chartX, chartY, chartWidth, chartHeight);
+
+  downloadCanvasAsPng(outputCanvas, `dashboard-history-chart-${new Date().toISOString().slice(0, 10)}.png`);
 }
 
 function clearDashboardHelpWizardHighlight() {
@@ -910,6 +1018,23 @@ if (btnDashboardHelpWizard) {
     openDashboardHelpWizard(0);
   });
 }
+
+btnPrintDashboardHistoryChart?.addEventListener('click', (event) => {
+  event.preventDefault();
+  const originalText = btnPrintDashboardHistoryChart.textContent;
+  btnPrintDashboardHistoryChart.textContent = 'Preparing...';
+  btnPrintDashboardHistoryChart.style.pointerEvents = 'none';
+
+  try {
+    downloadDashboardHistoryChartImage();
+  } catch (error) {
+    console.error(error);
+    alert('Unable to export chart image.');
+  } finally {
+    btnPrintDashboardHistoryChart.textContent = originalText;
+    btnPrintDashboardHistoryChart.style.pointerEvents = '';
+  }
+});
 
 document.getElementById('btnDashboardHelpWizardPrev')?.addEventListener('click', () => {
   dashboardHelpWizardState.stepIndex -= 1;
