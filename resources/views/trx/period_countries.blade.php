@@ -311,7 +311,7 @@
       const countryName = participant.country_name || participant.country_code || '-';
 
       return (Array.isArray(participant.scores) ? participant.scores : [])
-        .map((score) => {
+        .map((score, yearIndex) => {
           const period = periodById.get(Number(score.period_id));
           const coverage = score.coverage_sub_score_ratio;
           const openness = score.opennes_sub_score_ratio;
@@ -321,6 +321,7 @@
             label: String(period.year ?? '-'),
             countryName,
             year: String(period.year ?? '-'),
+            yearRow: yearIndex % 2,
             coverage: Number(coverage ?? 0),
             openness: Number(openness ?? 0),
           };
@@ -357,6 +358,7 @@
       id: 'countryGroupLabels',
       afterDraw(chart) {
         const xScale = chart.scales.x;
+        const chartBottom = chart.chartArea.bottom;
         const ctx = chart.ctx;
         if (!xScale || !countryGroups.length) return;
 
@@ -365,10 +367,15 @@
         ctx.font = '12px "Segoe UI", Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
+        points.forEach((point, index) => {
+          const x = xScale.getPixelForTick(index);
+          const yearRowOffset = point.yearRow === 0 ? 8 : 24;
+          ctx.fillText(point.year, x, chartBottom + yearRowOffset);
+        });
         countryGroups.forEach((group) => {
           const startX = xScale.getPixelForTick(group.startIndex);
           const endX = xScale.getPixelForTick(group.endIndex);
-          ctx.fillText(group.countryName, (startX + endX) / 2, xScale.bottom - 18);
+          ctx.fillText(group.countryName, (startX + endX) / 2, chartBottom + 44);
         });
         ctx.restore();
       },
@@ -431,9 +438,9 @@
           x: {
             stacked: true,
             grid: { display: false },
-            ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 },
+            ticks: { display: false },
             afterFit(scale) {
-              scale.height += 34;
+              scale.height += 64;
             },
           },
           y: {
