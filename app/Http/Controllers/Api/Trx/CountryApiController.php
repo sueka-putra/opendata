@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api\Trx;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Concerns\JsonEnvelope;
+use App\Http\Controllers\Controller;
 use App\Models\AssessmentCountry;
 use App\Models\AssessmentPeriod;
 use App\Services\AuditLogger;
@@ -50,7 +50,7 @@ class CountryApiController extends Controller
         );
         $hasAnyInput = $seriesRaw !== '' || $urlsRaw !== '' || $remarksRaw !== '' || $hasAnyOpenness;
 
-        if (!$hasAnyInput) {
+        if (! $hasAnyInput) {
             return 'empty';
         }
 
@@ -85,7 +85,7 @@ class CountryApiController extends Controller
                 ->groupBy('assessment_country_id')
                 ->map(function ($rows) {
                     $weighted = collect($rows)->first(fn ($r) => (int) ($r->section_id ?? 0) === 0);
-                    if (!$weighted) {
+                    if (! $weighted) {
                         return [
                             'coverage_sub_score_ratio' => 0,
                             'opennes_sub_score_ratio' => 0,
@@ -165,6 +165,75 @@ class CountryApiController extends Controller
             ];
         });
 
+        $chartPeriods = AssessmentPeriod::query()
+            ->where(function ($query) use ($period) {
+                $query->where('year', '<', $period->year)
+                    ->orWhere(function ($sameYear) use ($period) {
+                        $sameYear->where('year', $period->year)
+                            ->where('id', '<=', $period->id);
+                    });
+            })
+            ->orderByDesc('year')
+            ->orderByDesc('id')
+            ->limit(4)
+            ->get(['id', 'year', 'description'])
+            ->sortBy([
+                ['year', 'asc'],
+                ['id', 'asc'],
+            ])
+            ->values();
+
+        $participantCodes = $rows
+            ->pluck('country_code')
+            ->filter(fn ($code) => trim((string) $code) !== '')
+            ->values();
+        $historyByCountry = collect();
+
+        if ($chartPeriods->isNotEmpty() && $participantCodes->isNotEmpty()) {
+            $historyRows = DB::table('od_trx_assessment_countries as ac')
+                ->join('od_trx_assessment_summaries as s', function ($join) {
+                    $join->on('s.assessment_country_id', '=', 'ac.id')
+                        ->where('s.section_id', '=', 0);
+                })
+                ->whereIn('ac.period_id', $chartPeriods->pluck('id')->all())
+                ->whereIn('ac.country_code', $participantCodes->all())
+                ->get([
+                    'ac.country_code',
+                    'ac.period_id',
+                    's.coverage_sub_score',
+                    's.opennes_sub_score',
+                ]);
+
+            $historyByCountry = $historyRows
+                ->groupBy('country_code')
+                ->map(fn ($countryRows) => collect($countryRows)->keyBy('period_id'));
+        }
+
+        $chartParticipants = $rows
+            ->sortBy(fn ($row) => mb_strtolower((string) ($row['country_name'] ?: $row['country_code'])))
+            ->map(function ($row) use ($chartPeriods, $historyByCountry) {
+                $countryHistory = $historyByCountry->get($row['country_code'], collect());
+
+                return [
+                    'country_code' => $row['country_code'],
+                    'country_name' => $row['country_name'] ?: $row['country_code'],
+                    'scores' => $chartPeriods->map(function ($chartPeriod) use ($countryHistory) {
+                        $score = $countryHistory->get($chartPeriod->id);
+
+                        return [
+                            'period_id' => (int) $chartPeriod->id,
+                            'coverage_sub_score_ratio' => $score
+                                ? round(((float) ($score->coverage_sub_score ?? 0)) / 100, 6)
+                                : null,
+                            'opennes_sub_score_ratio' => $score
+                                ? round(((float) ($score->opennes_sub_score ?? 0)) / 100, 6)
+                                : null,
+                        ];
+                    })->values(),
+                ];
+            })
+            ->values();
+
         return $this->ok([
             'period' => [
                 'id' => $period->id,
@@ -173,6 +242,14 @@ class CountryApiController extends Controller
                 'active' => (bool) $period->active,
             ],
             'countries' => $rows,
+            'score_chart' => [
+                'periods' => $chartPeriods->map(fn ($chartPeriod) => [
+                    'id' => (int) $chartPeriod->id,
+                    'year' => (int) $chartPeriod->year,
+                    'description' => (string) ($chartPeriod->description ?? ''),
+                ])->values(),
+                'participants' => $chartParticipants,
+            ],
         ]);
     }
 
@@ -181,11 +258,11 @@ class CountryApiController extends Controller
         $ac = AssessmentCountry::findOrFail($assessmentCountryId);
         $period = AssessmentPeriod::findOrFail((int) $ac->period_id);
 
-        if (!$period->active) {
+        if (! $period->active) {
             return $this->fail('Assessment period is completed', 409);
         }
 
-        if (!$ac->is_submitted) {
+        if (! $ac->is_submitted) {
             return $this->fail('Country is not in submitted status', 409);
         }
 
@@ -271,7 +348,7 @@ class CountryApiController extends Controller
             ->where('period_id', $payload['periodid'])
             ->firstOrFail();
         $period = AssessmentPeriod::findOrFail($payload['periodid']);
-        if (!$period->active) {
+        if (! $period->active) {
             return $this->fail('Assessment period is completed', 409);
         }
 
@@ -332,6 +409,7 @@ class CountryApiController extends Controller
                         'source_row' => $sourceRow,
                         'reason' => 'Code not mapped to active configuration rows.',
                     ];
+
                     continue;
                 }
                 $series = trim((string) ($r['series'] ?? ''));
@@ -456,12 +534,12 @@ class CountryApiController extends Controller
             ->where('period_id', (int) $payload['periodid'])
             ->firstOrFail();
         $period = AssessmentPeriod::findOrFail((int) $payload['periodid']);
-        if (!$period->active) {
+        if (! $period->active) {
             return $this->fail('Assessment period is completed', 409);
         }
 
         $file = $request->file('template');
-        if (!$file) {
+        if (! $file) {
             return $this->fail('Template file is required', 422);
         }
 

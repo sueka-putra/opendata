@@ -59,6 +59,26 @@
         </table>
       </div>
     </div>
+
+    <div class="period-table-card participant-score-chart-card mt-3">
+      <div class="participant-score-chart-head">
+        <div>
+          <h2 class="h6 mb-1">Coverage &amp; Openness by Country and Year</h2>
+          <p class="small text-muted mb-0">Weighted coverage and weighted openness for the latest four assessment periods.</p>
+        </div>
+        <button class="btn od-btn-outline" type="button" id="btnPrintScoreChart" disabled>
+          <i class="fa-solid fa-print me-1" aria-hidden="true"></i>Print
+        </button>
+      </div>
+      <div class="participant-score-chart-scroll">
+        <div class="participant-score-chart-body" id="participantScoreChartBody">
+          <canvas id="participantScoreChart" aria-label="Participant weighted score history chart"></canvas>
+        </div>
+      </div>
+      <div class="small text-muted participant-score-chart-empty d-none" id="participantScoreChartEmpty">
+        No weighted score history is available.
+      </div>
+    </div>
   </div>
 </div>
 @endsection
@@ -135,11 +155,41 @@
     border-color: #e2e8f0;
     cursor: default;
   }
+
+  .participant-score-chart-card {
+    padding: 1rem;
+  }
+  .participant-score-chart-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .participant-score-chart-scroll {
+    overflow-x: auto;
+  }
+  .participant-score-chart-body {
+    position: relative;
+    height: 460px;
+    min-width: 720px;
+  }
+  .participant-score-chart-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+  }
+  @media (max-width: 575.98px) {
+    .participant-score-chart-head {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
 </style>
 @endpush
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   const periodId = @json((int) request()->route('periodId'));
   let uploadTemplateModal = null;
@@ -147,6 +197,7 @@
   let attachTemplateFileInput = null;
   let selectedUploadCountry = null;
   let uploadDebugInfo = null;
+  let participantScoreChart = null;
 
   function fmtDateTime(value) {
     if (!value) return '-';
@@ -224,6 +275,203 @@
         </td>
       </tr>
     `).join('');
+  }
+
+  function renderParticipantScoreChart(chartData) {
+    const canvas = document.getElementById('participantScoreChart');
+    const body = document.getElementById('participantScoreChartBody');
+    const empty = document.getElementById('participantScoreChartEmpty');
+    const printButton = document.getElementById('btnPrintScoreChart');
+    const periods = Array.isArray(chartData?.periods) ? chartData.periods : [];
+    const participants = Array.isArray(chartData?.participants) ? chartData.participants : [];
+
+    if (participantScoreChart) {
+      participantScoreChart.destroy();
+      participantScoreChart = null;
+    }
+
+    const hasScores = participants.some((participant) =>
+      (Array.isArray(participant.scores) ? participant.scores : []).some((score) =>
+        score.coverage_sub_score_ratio !== null || score.opennes_sub_score_ratio !== null
+      )
+    );
+
+    if (!canvas || !window.Chart || !periods.length || !participants.length || !hasScores) {
+      body?.classList.add('d-none');
+      empty?.classList.remove('d-none');
+      if (printButton) printButton.disabled = true;
+      return;
+    }
+
+    body.classList.remove('d-none');
+    empty.classList.add('d-none');
+    printButton.disabled = false;
+    const periodById = new Map(periods.map((period) => [Number(period.id), period]));
+    const points = participants.flatMap((participant) => {
+      const countryName = participant.country_name || participant.country_code || '-';
+
+      return (Array.isArray(participant.scores) ? participant.scores : [])
+        .map((score) => {
+          const period = periodById.get(Number(score.period_id));
+          const coverage = score.coverage_sub_score_ratio;
+          const openness = score.opennes_sub_score_ratio;
+          if (!period || (coverage === null && openness === null)) return null;
+
+          return {
+            label: String(period.year ?? '-'),
+            countryName,
+            year: String(period.year ?? '-'),
+            coverage: Number(coverage ?? 0),
+            openness: Number(openness ?? 0),
+          };
+        })
+        .filter(Boolean);
+    });
+
+    if (!points.length) {
+      body.classList.add('d-none');
+      empty.classList.remove('d-none');
+      printButton.disabled = true;
+      return;
+    }
+
+    const chartWidth = Math.max(720, points.length * 26);
+    body.style.width = `${chartWidth}px`;
+    body.style.minWidth = `${chartWidth}px`;
+
+    const labels = points.map((point) => point.label);
+    const countryGroups = [];
+    points.forEach((point, index) => {
+      const currentGroup = countryGroups[countryGroups.length - 1];
+      if (currentGroup && currentGroup.countryName === point.countryName) {
+        currentGroup.endIndex = index;
+        return;
+      }
+      countryGroups.push({
+        countryName: point.countryName,
+        startIndex: index,
+        endIndex: index,
+      });
+    });
+    const countryGroupLabelsPlugin = {
+      id: 'countryGroupLabels',
+      afterDraw(chart) {
+        const xScale = chart.scales.x;
+        const ctx = chart.ctx;
+        if (!xScale || !countryGroups.length) return;
+
+        ctx.save();
+        ctx.fillStyle = '#5f6368';
+        ctx.font = '12px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        countryGroups.forEach((group) => {
+          const startX = xScale.getPixelForTick(group.startIndex);
+          const endX = xScale.getPixelForTick(group.endIndex);
+          ctx.fillText(group.countryName, (startX + endX) / 2, xScale.bottom - 18);
+        });
+        ctx.restore();
+      },
+    };
+    const datasets = [
+      {
+        label: 'Coverage',
+        data: points.map((point) => point.coverage),
+        backgroundColor: '#4472c4',
+        borderColor: '#4472c4',
+        borderWidth: 1,
+        barPercentage: 0.52,
+        categoryPercentage: 0.98,
+        stack: 'score',
+      },
+      {
+        label: 'Openness',
+        data: points.map((point) => point.openness),
+        backgroundColor: '#ed7d31',
+        borderColor: '#ed7d31',
+        borderWidth: 1,
+        barPercentage: 0.52,
+        categoryPercentage: 0.98,
+        stack: 'score',
+      },
+    ];
+
+    participantScoreChart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets },
+      plugins: [countryGroupLabelsPlugin],
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: true },
+        animation: { duration: 300 },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { boxWidth: 14, boxHeight: 14, padding: 16 },
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                if (!items.length) return '';
+                const point = points[items[0].dataIndex];
+                return point ? `${point.countryName} - ${point.year}` : '';
+              },
+              label: (context) => `${context.dataset.label}: ${Number(context.parsed.y || 0).toFixed(2)}`,
+              footer: (items) => {
+                if (!items.length) return '';
+                const total = participantScoreChart.data.datasets
+                  .reduce((sum, dataset) => sum + Number(dataset.data[items[0].dataIndex] || 0), 0);
+                return `Total: ${total.toFixed(2)}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            grid: { display: false },
+            ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 },
+            afterFit(scale) {
+              scale.height += 34;
+            },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            max: 2,
+            ticks: { stepSize: 0.2 },
+            title: { display: true, text: 'Score' },
+            grid: { color: 'rgba(146, 169, 204, 0.25)' },
+          },
+        },
+      },
+    });
+  }
+
+  function printParticipantScoreChart() {
+    if (!participantScoreChart) return;
+    const source = participantScoreChart.canvas;
+    const output = document.createElement('canvas');
+    const padding = 28;
+    const titleHeight = 56;
+    output.width = source.width + (padding * 2);
+    output.height = source.height + titleHeight + padding;
+    const ctx = output.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, output.width, output.height);
+    ctx.fillStyle = '#172033';
+    ctx.font = '700 24px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Coverage & Openness by Country and Year', output.width / 2, 34);
+    ctx.drawImage(source, padding, titleHeight);
+
+    const link = document.createElement('a');
+    link.href = output.toDataURL('image/png');
+    link.download = `coverage_openness_by_country_year_period_${periodId}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function participantTemplateIcon(row) {
@@ -431,9 +679,11 @@
       window.__periodIsOpen = payload.period && (payload.period.active === true || payload.period.active === 1 || payload.period.active === '1');
       renderPeriodMeta(payload.period || null);
       renderCountries(payload.countries || []);
+      renderParticipantScoreChart(payload.score_chart || {});
     } catch (err) {
       document.getElementById('periodMeta').textContent = 'Failed to load period data.';
       tbody.innerHTML = `<tr><td colspan="9" class="text-danger">${err.message || 'Failed to load participants.'}</td></tr>`;
+      renderParticipantScoreChart({});
     }
   }
 
@@ -1024,6 +1274,7 @@
     });
 
     document.getElementById('btnRefreshCountries').addEventListener('click', loadCountries);
+    document.getElementById('btnPrintScoreChart').addEventListener('click', printParticipantScoreChart);
     document.getElementById('tbCountries').addEventListener('click', (event) => {
       const unlockBtn = event.target.closest('.btn-unlock-country');
       if (unlockBtn) {
