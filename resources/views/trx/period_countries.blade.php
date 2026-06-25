@@ -317,10 +317,15 @@
           const openness = score.opennes_sub_score_ratio;
           if (!period || (coverage === null && openness === null)) return null;
 
+          const referenceYear = Number(period.year);
+          const displayYear = Number.isFinite(referenceYear)
+            ? String(referenceYear + 1)
+            : String(period.year ?? '-');
+
           return {
-            label: String(period.year ?? '-'),
+            label: displayYear,
             countryName,
-            year: String(period.year ?? '-'),
+            year: displayYear,
             yearRow: yearIndex % 2,
             coverage: Number(coverage ?? 0),
             openness: Number(openness ?? 0),
